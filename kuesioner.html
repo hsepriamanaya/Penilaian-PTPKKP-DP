@@ -20,7 +20,10 @@ button:disabled{opacity:.5}.msg{padding:10px;border-radius:8px;margin:10px 0}.er
 .lv{display:block;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;margin:6px 0;cursor:pointer}
 .lv:has(input:checked){border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
 .lv input{width:auto;margin-right:8px}.lv b{display:inline}.lv small{display:block;color:var(--mu);margin-left:24px}
-.ck{display:inline-flex;gap:6px;align-items:center;margin:4px 14px 4px 0}.ck input{width:auto}
+#ar{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.ck{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;cursor:pointer;line-height:1.2}
+.ck:has(input:checked){border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
+.ck input{width:18px;height:18px;margin:0;flex:none;accent-color:var(--ac)}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;position:sticky;top:0}.bar i{display:block;height:100%;background:var(--ac);width:0}
 </style></head><body><div class="w">
 <img id="bn" src="banner.png" alt="" style="width:100%;border-radius:10px;display:none" onload="this.style.display='block'" onerror="this.remove()">
