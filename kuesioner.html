@@ -17,14 +17,29 @@ select,input{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8p
 button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit;font-weight:600;cursor:pointer;width:100%}
 @media(prefers-color-scheme:dark){button{color:#10151c}}
 button:disabled{opacity:.5}.msg{padding:10px;border-radius:8px;margin:10px 0}.er{background:#fdecea;color:var(--er)}.ok{background:#e8f5e9;color:var(--ok)}
+.lv{display:block;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;margin:6px 0;cursor:pointer}
+.lv:has(input:checked){border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
+.lv input{width:auto;margin-right:8px}.lv b{display:inline}.lv small{display:block;color:var(--mu);margin-left:24px}
+.ck{display:inline-flex;gap:6px;align-items:center;margin:4px 14px 4px 0}.ck input{width:auto}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;position:sticky;top:0}.bar i{display:block;height:100%;background:var(--ac);width:0}
 </style></head><body><div class="w">
-<h1>Kuesioner Persepsi Keselamatan Pertambangan</h1>
-<p class="mu">Kuesioner ini <b>anonim</b>: tidak menanyakan nama atau NIK, dan tidak menyimpan alamat IP, email, maupun jam pengisian. Pilih pernyataan yang paling menggambarkan kondisi di tempat kerja Anda.</p>
+<img id="bn" src="banner.png" alt="" style="width:100%;border-radius:10px;display:none" onload="this.style.display='block'" onerror="this.remove()">
+<h1 id="jd">Kuesioner Penilaian Tingkat Pencapaian Kinerja Keselamatan Pertambangan</h1>
+<div class="c" id="ds"></div>
 <div id="app"><div class="c mu">Memuat…</div></div></div>
 <script src="ks_data.js"></script>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyAmqSz709-jRC-3jKTqXJR_b26VXftwjGje9lvH5KlcgT9xWuQI1cMBO3G5GltRcqJVw/exec';
+/* ===== DAFTAR PILIHAN — ubah di sini bila perlu ===== */
+const DEPARTEMEN = ['Angkutan & Stasiun','Technical Service','Produksi','HSE','Plant & Maintenance','HRGA & Security','Land Acquisition, External Relation & CSR','Finance, Accounting & Budgeting','Supply Chain Management','Civil','Government Relations & Reporting','Lainnya'];
+const AREA = ['HO - BOD','Office','Pit','Hauling','Gudang Handak','TPS LB3','Workshop / Pit Shop','Warehouse','Setling Pond','All Area'];
+const LEVEL_INFO = [
+  {l:'Top Management', d:'Pimpinan tertinggi perusahaan di kantor pusat: BOD / Direksi (HO).', j:['BOD - HO','Lainnya (Top Management)']},
+  {l:'Top Management Site', d:'Pimpinan tertinggi di lokasi tambang: KTT, Wakil KTT, Manager, PJO, Wakil PJO, Koordinator Site.', j:['KTT','Wakil KTT','Manager','PJO','Wakil PJO','Koordinator Site','Lainnya (Top Management Site)']},
+  {l:'Middle Management', d:'Kepala departemen / bagian: Departemen Head, Section Head.', j:['Departemen Head','Section Head','Lainnya (Middle Management)']},
+  {l:'Pengawas', d:'Pengawas lapangan: Grup Leader, Foreman, Supervisor, Leading Hand.', j:['Grup Leader','Foreman','Supervisor','Leading Hand','Lainnya (Pengawas)']},
+  {l:'Non Staff', d:'Pekerja pelaksana tanpa jabatan pengawas, baik lapangan (Operator, Mekanik, Welder, Teknisi, Carpenter, Helper, Driver, ERT, Security, CCR) maupun non-lapangan (Admin, Sekretaris, IT Crew, Assistant, Paramedic).', j:['Operator','Driver LV','Driver Bus','Mekanik','Welder','Teknisi','Carpenter','Helper','ERT','Security','CCR','Admin','Sekretaris','IT Crew','Assistant','Paramedic','Lainnya (Non Staff)']}
+];
 const $ = s => document.querySelector(s);
 let cfg = null, ans = {};
 async function api(body, retries = 5) {
@@ -39,22 +54,49 @@ async function api(body, retries = 5) {
   }
   return { ok: false, error: 'Server sedang padat atau tidak terjangkau. Jawaban Anda masih tersimpan di layar — coba kirim lagi beberapa saat.' };
 }
+function deskripsi() {
+  const pr = esc(cfg.perusahaan || 'perusahaan Anda'), th = esc(cfg.periode || '');
+  document.title = 'Kuesioner PTPKKP ' + (cfg.periode || '');
+  $('#jd').textContent = 'Kuesioner Penilaian Tingkat Pencapaian Kinerja Keselamatan Pertambangan' + (cfg.periode ? ' ' + cfg.periode : '');
+  $('#ds').innerHTML = `<b>Deskripsi</b><ul style="margin:.5rem 0 0;padding-left:1.2rem">
+  <li>Kuesioner ini bertujuan untuk mendapatkan gambaran terhadap Tingkat Pencapaian Kinerja Keselamatan Pertambangan yang ada di area <b>${pr}</b>${th ? ' tahun ' + th : ''}.</li>
+  <li>Kuesioner ini <b>anonim</b>. Tidak ada nama, NIK, alamat IP, email, maupun jam pengisian yang disimpan. Jawaban Anda bersifat rahasia dan tidak berdampak terhadap penilaian kinerja Anda.</li>
+  <li>Berikan penilaian Anda pada daftar pertanyaan berikut dengan jawaban yang sesuai dengan pendapat Anda pribadi.</li>
+  <li>Pilihlah salah satu jawaban yang menggambarkan kondisi sesuai dengan apa yang Anda alami, lihat, dan rasakan di tempat kerja.</li>
+  <li>Pastikan semua pertanyaan yang ada telah Anda jawab.</li></ul>`;
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function intro() {
   const el = $('#app');
+  const lvl = LEVEL_INFO.filter(x => cfg.levels.includes(x.l));
   el.innerHTML = `<div class="c">
-  <label class="f">Perusahaan / Entitas</label><select id="ent"><option value="">— pilih —</option>${cfg.entitas.map(e => `<option value="${e.kode}">${e.nama}</option>`).join('')}</select>
-  <label class="f">Level jabatan</label><select id="lv"><option value="">— pilih —</option>${cfg.levels.map(l => `<option>${l}</option>`).join('')}</select>
-  <label class="f">Departemen / bagian <span class="n">(opsional)</span></label><input id="dp" maxlength="60" placeholder="mis. Produksi, Plant, SHE">
-  ${cfg.perlu_kode ? '<label class="f">Kode kuesioner</label><input id="kd" autocomplete="off" placeholder="Kode dari koordinator">' : ''}
-  <div id="m"></div><button id="go">Mulai</button></div>`;
+  <label class="f">Perusahaan / Entitas *</label><select id="ent"><option value="">— pilih —</option>${cfg.entitas.map(e => `<option value="${e.kode}">${e.nama}</option>`).join('')}</select>
+  <label class="f">Departemen *</label><select id="dp"><option value="">— pilih —</option>${DEPARTEMEN.map(d => `<option>${d}</option>`).join('')}</select>
+  <label class="f">Level jabatan * <span class="n">— pilih sesuai jabatan Anda saat ini</span></label>
+  ${lvl.map(x => `<label class="lv"><input type="radio" name="lvl" value="${x.l}"><b>${x.l}</b><small>${x.d}</small></label>`).join('')}
+  <label class="f">Jabatan rinci *</label><select id="jb" disabled><option value="">— pilih level dulu —</option></select>
+  <label class="f">Area kerja * <span class="n">(boleh lebih dari satu)</span></label>
+  <div id="ar">${AREA.map(a => `<label class="ck"><input type="checkbox" value="${a}">${a}</label>`).join('')}</div>
+  ${cfg.perlu_kode ? '<label class="f">Kode kuesioner *</label><input id="kd" autocomplete="off" placeholder="Kode dari koordinator">' : ''}
+  <div id="m"></div><button id="go" style="margin-top:12px">Mulai</button></div>`;
+  document.querySelectorAll('input[name=lvl]').forEach(r => r.onchange = () => {
+    const x = LEVEL_INFO.find(i => i.l === r.value);
+    $('#jb').disabled = false; $('#jb').innerHTML = '<option value="">— pilih —</option>' + x.j.map(j => `<option>${j}</option>`).join('');
+  });
+  document.querySelectorAll('#ar input').forEach(c => c.onchange = () => { // "All Area" tidak digabung dengan area lain
+    if (c.value === 'All Area' && c.checked) document.querySelectorAll('#ar input').forEach(o => { if (o !== c) o.checked = false; });
+    else if (c.checked) document.querySelectorAll('#ar input').forEach(o => { if (o.value === 'All Area') o.checked = false; });
+  });
   $('#go').onclick = () => {
-    const ent = $('#ent').value, lv = $('#lv').value;
-    if (!ent || !lv) return $('#m').innerHTML = '<div class="msg er">Pilih entitas dan level jabatan.</div>';
+    const ent = $('#ent').value, dp = $('#dp').value, lr = document.querySelector('input[name=lvl]:checked'), jb = $('#jb').value;
+    const ar = [...document.querySelectorAll('#ar input:checked')].map(c => c.value);
+    const miss = [!ent && 'entitas', !dp && 'departemen', !lr && 'level jabatan', !jb && 'jabatan rinci', !ar.length && 'area kerja'].filter(Boolean);
+    if (miss.length) return $('#m').innerHTML = `<div class="msg er">Lengkapi dulu: ${miss.join(', ')}.</div>`;
     if (localStorage.getItem('ks_done_' + ent)) { if (!confirm('Perangkat ini sudah pernah mengirim jawaban untuk entitas ini. Kirim lagi?')) return; }
-    form(ent, lv, $('#dp').value.trim(), cfg.perlu_kode ? $('#kd').value.trim() : '');
+    form(ent, lr.value, dp, cfg.perlu_kode ? $('#kd').value.trim() : '', jb, ar.join('; '));
   };
 }
-function form(ent, lv, dp, kd) {
+function form(ent, lv, dp, kd, jb, ar) {
   const items = KS_ITEMS.filter(i => i.levels.some(x => x.toLowerCase() === lv.toLowerCase()));
   ans = {};
   $('#app').innerHTML = `<div class="bar"><i id="pb"></i></div>` + items.map((it, k) => `<div class="c"><div class="q"><span class="n">${k + 1}/${items.length}</span> ${it.q}</div>` +
@@ -66,7 +108,7 @@ function form(ent, lv, dp, kd) {
     const miss = items.filter(i => !ans[i.code]).length;
     if (miss) return $('#m').innerHTML = `<div class="msg er">Masih ada ${miss} pertanyaan yang belum dijawab.</div>`;
     $('#send').disabled = true; $('#m').innerHTML = '<div class="msg mu">Mengirim…</div>';
-    const r = await api({ action: 'submit', kode: kd, entitas: ent, level: lv, departemen: dp, jawaban: ans });
+    const r = await api({ action: 'submit', kode: kd, entitas: ent, level: lv, departemen: dp, jabatan: jb, area: ar, jawaban: ans });
     if (r.ok) { try { localStorage.setItem('ks_done_' + ent, '1'); } catch (e) {} $('#app').innerHTML = '<div class="c"><div class="msg ok">Terima kasih. Jawaban Anda sudah terkirim.</div></div>'; }
     else { $('#send').disabled = false; $('#m').innerHTML = `<div class="msg er">${r.error || 'Gagal mengirim'}</div>`; }
   };
@@ -75,6 +117,6 @@ function form(ent, lv, dp, kd) {
   if (API_URL.startsWith('GANTI')) return $('#app').innerHTML = '<div class="c msg er">API_URL belum diisi (lihat PANDUAN).</div>';
   const r = await api(null);
   if (!r.ok) return $('#app').innerHTML = `<div class="c msg er">${r.error}</div>`;
-  cfg = r; intro();
+  cfg = r; deskripsi(); intro();
 })();
 </script></body></html>
