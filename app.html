@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SML PTPKKP — Aplikasi Penilaian</title>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--tx:#1b2430;--mu:#5f6b7a;--ac:#1f3864;--bd:#d6dde6;--hd:#e9eef5;--ok:#2e7d32;--er:#c62828}
+@media(prefers-color-scheme:dark){:root{--bg:#10151c;--card:#19212b;--tx:#e8edf3;--mu:#9aa7b6;--ac:#7fa6e6;--bd:#2c3846;--hd:#202b38}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif}
+.w{max-width:1280px;margin:0 auto;padding:12px 16px}
+h1{font-size:1.2rem;margin:.2rem 0}h2{font-size:1.05rem;margin:.2rem 0 .6rem}.mu{color:var(--mu)}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin:10px 0}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}nav button{background:var(--card);color:var(--tx);border:1px solid var(--bd)}nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+@media(prefers-color-scheme:dark){nav button.on{color:#10151c}}
+button{background:var(--ac);color:#fff;border:0;border-radius:7px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+@media(prefers-color-scheme:dark){button{color:#10151c}}
+button.s{background:var(--card);color:var(--tx);border:1px solid var(--bd)}button:disabled{opacity:.5}
+input,select,textarea{padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);font:inherit;max-width:100%}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--bd);padding:5px 7px;text-align:left;vertical-align:top}th{background:var(--hd);position:sticky;top:0}
+.sc{overflow:auto;max-height:70vh}td.n,th.n{text-align:center}
+.chip{display:inline-block;padding:1px 8px;border-radius:10px;font-weight:600;font-size:.85em;color:#fff}
+.Dasar{background:#c62828}.Reaktif{background:#ef6c00}.Terencana{background:#b59b00}.Proaktif{background:#2e7d32}.Resilient{background:#1565c0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.k{font-size:1.6rem;font-weight:700}
+.er{color:var(--er)}.ok{color:var(--ok)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.rub{font-size:.85em;background:var(--hd)}.rub div{margin:2px 0}
+.dis{background:var(--hd)}
+</style></head><body><div class="w">
+<h1>SML / PTPKKP — Aplikasi Penilaian <span class="mu" id="who"></span></h1>
+<div id="app"></div></div>
+<script src="master_web.js"></script>
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbyAmqSz709-jRC-3jKTqXJR_b26VXftwjGje9lvH5KlcgT9xWuQI1cMBO3G5GltRcqJVw/exec';
+const METHODS = ['TD','KS','WWC','FGD','ANL','OBS','PJ'], MNAME={TD:'Tinjauan Dokumentasi',KS:'Kuesioner',WWC:'Wawancara',FGD:'FGD',ANL:'Analisis',OBS:'Observasi',PJ:'Pengujian'};
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const CATS=['Dasar','Reaktif','Terencana','Proaktif','Resilient'];
+const cat=(x,th)=>{x=Math.round(x*1e4)/1e4;for(let i=0;i<4;i++)if(x<th[i])return CATS[i];return CATS[4]};
+const chip=c=>`<span class="chip ${c}">${c}</span>`;
+let KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1';
+const DEF={agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
+
+async function call(body){try{const r=body?await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,key:KEY})}):await fetch(`${API_URL}?action=all&key=${encodeURIComponent(KEY)}`);return await r.json()}catch(e){return{ok:false,error:'Tidak dapat terhubung ke server'}}}
+async function load(){const r=await call();if(!r.ok)return r;ROLE=r.role;D=r.data;
+  D.cfg={...DEF};D.Config.forEach(c=>D.cfg[c.kunci]=String(c.nilai));
+  D.skor={};D.cat={};D.Skor.forEach(r=>{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.entitas==='_CAT')D.cat[`${r.item}|${r.metode}`]=r.catatan;else if(r.skor!=='')D.skor[k]=Number(r.skor)});
+  D.ovr={};D.Override.forEach(r=>D.ovr[String(r.item)]={skor:Number(r.skor),alasan:r.alasan});return r}
+
+/* ===== Perhitungan sesuai Kepdirjen: satu skor per item; parameter = Σ skor item /(5×n item) × bobot ===== */
+const activeEnt=()=>D.Entitas.filter(e=>e.aktif==='Ya');
+function ksScores(){ // {entitas: {item: skor}} dari rekap kuesioner
+  const min=+D.cfg.minresp||1,res={};
+  activeEnt().forEach(e=>{res[e.kode]={};KS_ITEMS_M.forEach(it=>{const sc=[];
+    D.KS_Rekap.filter(g=>g.entitas===e.kode&&it.levels.includes(g.level.toUpperCase())&&g.n>=min&&g.cnt[it.code]>0).forEach(g=>{const a=g.sum[it.code]/g.cnt[it.code];sc.push(D.cfg.ksround==='Dibulatkan ke bawah'?Math.floor(a):Math.round(a))});
+    if(sc.length)res[e.kode][it.code]=Math.min(...sc)})});return res}
+let KS_ITEMS_M=MASTER.items.filter(i=>i.methods.includes('KS'));
+function entScore(it,m,e,ks){return m==='KS'?ks[e.kode]?.[it.code]:D.skor[`${it.code}|${m}|${e.kode}`]}
+function consolidate(it,m,ents,ks){
+  const el=(it.iup?ents.filter(e=>e.peran==='IUP'):ents),v=[];
+  el.forEach(e=>{const s=entScore(it,m,e,ks);if(s>=1)v.push({s,w:+e.pekerja||0})});
+  if(!v.length)return null;
+  if(D.cfg.agg==='MIN'||ents.length===1)return Math.min(...v.map(x=>x.s));
+  const sw=v.reduce((a,x)=>a+x.w,0);return sw?v.reduce((a,x)=>a+x.s*x.w,0)/sw:v.reduce((a,x)=>a+x.s,0)/v.length}
+function itemFinal(it,ents,ks,useOvr){
+  const ms={};it.methods.forEach(m=>ms[m]=consolidate(it,m,ents,ks));
+  const vals=Object.values(ms).filter(x=>x!=null);let f=null,ov=false;
+  if(useOvr&&D.ovr[it.code]){f=D.ovr[it.code].skor;ov=true}
+  else if(vals.length)f=D.cfg.itemrule==='MIN'?Math.min(...vals):Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+  return{ms,f,ov,comp:ov?1:vals.length/it.methods.length}}
+function calc(ents,ks,useOvr=true){
+  const R={items:{},params:{},inds:{},total:0};
+  MASTER.items.forEach(it=>{if(it.iup&&!ents.some(e=>e.peran==='IUP'))return;R.items[it.code]=itemFinal(it,ents,ks,useOvr)});
+  let tw=0,tc=0,tn=0;
+  Object.keys(MASTER.params).forEach(p=>{const its=MASTER.items.filter(i=>i.param===p&&R.items[i.code]);
+    const sum=its.reduce((a,i)=>a+(R.items[i.code].f||0),0),n=its.length,w=MASTER.params[p].w,pct=n?sum/(5*n):0;
+    const comp=n?its.reduce((a,i)=>a+R.items[i.code].comp,0)/n:0;
+    R.params[p]={name:MASTER.params[p].name,w,n,sum,pct,cap:pct*w,gap:w-pct*w,cat:cat(pct,MASTER.th_item),comp}});
+  [1,2,3,4].forEach(i=>{const ps=Object.keys(R.params).filter(p=>p.startsWith(i+'.'));const cap=ps.reduce((a,p)=>a+R.params[p].cap,0),mx=ps.reduce((a,p)=>a+R.params[p].w,0);
+    const comp=ps.reduce((a,p)=>a+R.params[p].comp*R.params[p].n,0)/ps.reduce((a,p)=>a+R.params[p].n,0);
+    R.inds[i]={name:MASTER.ind[i],cap,mx,pct:cap/mx,cat:cat(cap,MASTER.th_ind[i]),comp};R.total+=cap;tw+=mx;tc+=comp*mx});
+  R.cat=cat(R.total,MASTER.th_tot);R.comp=tc/tw;return R}
+
+/* ===== Tampilan ===== */
+function shell(){
+  const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner']];
+  $('#who').textContent=`— ${D.cfg.perusahaan||''} ${D.cfg.periode||''} (${ROLE==='admin'?'Auditor/Admin':'Pembaca'})`;
+  $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<button class="s" id="rl" style="margin-left:auto">Muat ulang data</button></nav><div id="v"></div>`;
+  document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;shell()});
+  $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
+  ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor})[TAB]()}
+
+function vHasil(){
+  const ents=activeEnt(),ks=ksScores(),R=calc(ents,ks);window.R=R;
+  const rows=Object.entries(R.params).sort((a,b)=>b[1].gap-a[1].gap);
+  const rank={};rows.forEach(([p],i)=>rank[p]=i+1);
+  const perEnt=ents.map(e=>{const r=calc([e],ks);return{e,r}});
+  $('#v').innerHTML=`<div class="grid"><div class="c"><div class="mu">Nilai total</div><div class="k">${R.total.toFixed(4)}</div>${chip(R.cat)}</div>
+   <div class="c"><div class="mu">Kelengkapan input</div><div class="k ${R.comp<1?'er':'ok'}">${(R.comp*100).toFixed(0)}%</div><div class="mu">${R.comp<1?'Skor yang belum diisi dihitung 0 — total belum final':'Lengkap'}</div></div>
+   <div class="c"><div class="mu">Aturan aktif</div><div>Antar-entitas: <b>${D.cfg.agg}</b><br>Skor akhir item: <b>${D.cfg.itemrule}</b><br>Entitas aktif: <b>${ents.length}</b></div></div></div>
+  <div class="c"><h2>Per indikator</h2><table><tr><th>No</th><th>Indikator</th><th class="n">Bobot</th><th class="n">Nilai capaian</th><th class="n">% terpenuhi</th><th>Tingkat</th></tr>
+   ${[1,2,3,4].map(i=>`<tr><td>${i}</td><td>${esc(R.inds[i].name)}</td><td class="n">${R.inds[i].mx.toFixed(2)}</td><td class="n">${R.inds[i].cap.toFixed(4)}</td><td class="n">${(R.inds[i].pct*100).toFixed(0)}%</td><td>${chip(R.inds[i].cat)}</td></tr>`).join('')}</table></div>
+  <div class="c"><h2>Per parameter (urut prioritas gap)</h2><div class="sc"><table><tr><th class="n">Prioritas</th><th>Parameter</th><th class="n">Item</th><th class="n">Bobot</th><th class="n">Σ skor</th><th class="n">%</th><th class="n">Nilai capaian</th><th class="n">Gap</th><th>Tingkat</th></tr>
+   ${rows.map(([p,x])=>`<tr><td class="n">${rank[p]}</td><td>${p} ${esc(x.name)}</td><td class="n">${x.n}</td><td class="n">${x.w.toFixed(2)}</td><td class="n">${x.sum}/${5*x.n}</td><td class="n">${(x.pct*100).toFixed(0)}%</td><td class="n">${x.cap.toFixed(4)}</td><td class="n">${x.gap.toFixed(4)}</td><td>${chip(x.cat)}</td></tr>`).join('')}</table></div></div>
+  <div class="c"><h2>Per entitas <span class="mu">(indikatif — hanya dari skor entitas itu; nilai resmi = nilai total di atas)</span></h2><table><tr><th>Entitas</th><th>Peran</th><th class="n">Indeks</th><th>Tingkat</th><th class="n">Kelengkapan</th></tr>
+   ${perEnt.map(({e,r})=>`<tr><td>${esc(e.nama)}</td><td>${esc(e.peran)}</td><td class="n">${r.total.toFixed(4)}</td><td>${chip(r.cat)}</td><td class="n">${(r.comp*100).toFixed(0)}%</td></tr>`).join('')}</table></div>`}
+
+function vNilai(){
+  const ents=activeEnt(),ks=ksScores();
+  const its=MASTER.items.filter(i=>i.methods.includes(METHOD)&&i.code.startsWith(INDF==='*'?'':INDF+'.'));
+  $('#v').innerHTML=`<div class="c"><div class="row"><b>Metode</b><select id="mt">${METHODS.map(m=>`<option value="${m}" ${m===METHOD?'selected':''}>${m} — ${MNAME[m]}</option>`).join('')}</select>
+   <b>Indikator</b><select id="ifl"><option value="*">Semua</option>${[1,2,3,4].map(i=>`<option value="${i}" ${INDF==i?'selected':''}>${i}. ${esc(MASTER.ind[i].slice(0,40))}</option>`).join('')}</select>
+   <button id="sv">Simpan skor</button><span id="sm" class="mu"></span></div>
+   ${METHOD==='KS'?'<div class="mu">Skor KS dihitung otomatis dari kuesioner (hanya baca).</div>':'<div class="mu">Pilih skor 1–5 per entitas sesuai rubrik. Kosong = belum dinilai. Item khusus IUP hanya diisi untuk entitas IUP.</div>'}</div>
+   <div class="c"><div class="sc"><table><tr><th>Kode</th><th>Item</th>${ents.map(e=>`<th class="n">${esc(e.kode)}</th>`).join('')}<th class="n">Konsolidasi</th><th>Catatan</th><th></th></tr>
+   ${its.map(it=>{const cons=consolidate(it,METHOD,ents,ks);return`<tr><td>${it.code}</td><td>${esc(it.name)}${it.iup?' <span class="mu">(khusus IUP)</span>':''}</td>
+    ${ents.map(e=>{const na=it.iup&&e.peran!=='IUP';if(na)return'<td class="dis"></td>';
+     if(METHOD==='KS')return`<td class="n">${ks[e.kode]?.[it.code]??''}</td>`;
+     const k=`${it.code}|${METHOD}|${e.kode}`,v=k in DIRTY?DIRTY[k]:(D.skor[k]??'');
+     return`<td class="n"><select data-k="${k}"><option></option>${[1,2,3,4,5].map(n=>`<option ${v===n?'selected':''}>${n}</option>`).join('')}</select></td>`}).join('')}
+    <td class="n"><b>${cons==null?'':(+cons.toFixed(2))}</b></td>
+    <td>${METHOD==='KS'?'':`<input data-c="${it.code}|${METHOD}" value="${esc(DIRTY['c:'+it.code+'|'+METHOD]??D.cat[it.code+'|'+METHOD]??'')}" size="24">`}</td>
+    <td><button class="s" data-r="${it.code}">Rubrik</button></td></tr>
+    <tr class="rub" id="r-${it.code}" hidden><td></td><td colspan="${ents.length+4}">${it.rubric.map((t,i)=>`<div><b>${i+1}.</b> ${esc(t)}</div>`).join('')}${it.tgt[METHOD]?`<div class="mu"><b>Target/bukti:</b> ${esc(it.tgt[METHOD])}</div>`:''}</td></tr>`}).join('')}</table></div></div>`;
+  $('#mt').onchange=e=>{METHOD=e.target.value;vNilai()};$('#ifl').onchange=e=>{INDF=e.target.value;vNilai()};
+  document.querySelectorAll('select[data-k]').forEach(s=>s.onchange=()=>{DIRTY[s.dataset.k]=s.value===''?'':+s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
+  document.querySelectorAll('input[data-c]').forEach(s=>s.onchange=()=>{DIRTY['c:'+s.dataset.c]=s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
+  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const r=$('#r-'+b.dataset.r);r.hidden=!r.hidden});
+  $('#sv').onclick=saveScores}
+async function saveScores(){
+  const rows=Object.entries(DIRTY).map(([k,v])=>{if(k.startsWith('c:')){const[i,m]=k.slice(2).split('|');return{item:i,metode:m,entitas:'_CAT',skor:'',catatan:v}}const[i,m,e]=k.split('|');return{item:i,metode:m,entitas:e,skor:v,catatan:''}});
+  if(!rows.length)return;$('#sv').disabled=true;$('#sm').textContent='Menyimpan…';
+  for(let i=0;i<rows.length;i+=150){const r=await call({action:'saveScores',rows:rows.slice(i,i+150)});if(!r.ok){$('#sm').innerHTML=`<span class="er">${esc(r.error)}</span>`;$('#sv').disabled=false;return}}
+  rows.forEach(r=>{if(r.entitas==='_CAT')D.cat[`${r.item}|${r.metode}`]=r.catatan;else{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.skor==='')delete D.skor[k];else D.skor[k]=r.skor}});
+  DIRTY={};$('#sv').disabled=false;$('#sm').innerHTML='<span class="ok">Tersimpan.</span>'}
+
+function vKs(){
+  const ents=activeEnt(),sl=(N,e)=>Math.ceil(N/(1+N*e*e)),moe=+D.cfg.moe||.05;
+  const pop={};D.Populasi.forEach(p=>pop[p.entitas+'|'+p.level]=+p.populasi||0);
+  const lv=['Top Management','Top Management Site','Middle Management','Pengawas','Non Staff'];
+  const cnt={};D.KS_Rekap.forEach(g=>cnt[g.entitas+'|'+g.level]=g.n);
+  let tg=0,tn=0;
+  const body=ents.map(e=>lv.map(l=>{const N=pop[e.kode+'|'+l]||0,t=N?sl(N,moe):0,n=cnt[e.kode+'|'+l]||0;tg+=t;tn+=Math.min(n,t||n);
+    return`<tr><td>${esc(e.kode)}</td><td>${l}</td><td class="n">${ROLE==='admin'?`<input type="number" min="0" style="width:80px" data-p="${e.kode}|${l}" value="${N}">`:N}</td><td class="n">${t}</td><td class="n">${n}</td><td class="n ${t&&n>=t?'ok':'er'}">${t?Math.round(n/t*100)+'%':'-'}</td></tr>`}).join('')).join('');
+  $('#v').innerHTML=`<div class="c"><h2>Rekap kuesioner (anonim)</h2><div class="mu">Sampel = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
+   ${ROLE==='admin'?'<div class="row"><button id="sp">Simpan populasi</button><span id="pm" class="mu"></span></div>':''}
+   <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Target sampel</th><th class="n">Terkumpul</th><th class="n">%</th></tr>${body}</table></div></div>`;
+  if(ROLE==='admin')$('#sp').onclick=async()=>{const rows=[];document.querySelectorAll('[data-p]').forEach(i=>{const[e,l]=i.dataset.p.split('|');if(+i.value)rows.push({entitas:e,level:l,populasi:+i.value})});
+    const r=await call({action:'savePopulasi',rows});$('#pm').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Populasi=rows}}
+
+function vEnt(){
+  const E=D.Entitas;
+  $('#v').innerHTML=`<div class="c"><h2>Entitas</h2><div class="mu">Tambah/kurangi IUJP dan labor supply di sini. Entitas "Tidak" aktif tidak ikut perhitungan dan kuesioner. Perubahan diterapkan setelah Simpan.</div>
+   <div class="sc"><table id="et"><tr><th>Kode</th><th>Nama</th><th>Peran</th><th>Lingkup</th><th>Jml pekerja</th><th>Aktif</th><th></th></tr>${E.map((e,i)=>entRow(e,i)).join('')}</table></div>
+   <div class="row"><button class="s" id="ad">+ Tambah entitas</button><button id="se">Simpan entitas</button><span id="em" class="mu"></span></div></div>
+   <div class="c"><h2>Pengaturan</h2><div class="grid">
+   ${sel('agg','Konsolidasi antar-entitas',['MIN','RATA-RATA TERBOBOT'])}${sel('itemrule','Skor akhir item dari beberapa metode',['MIN','RATA-RATA'])}${sel('ksround','Pembulatan skor kuesioner',['Pembulatan biasa','Dibulatkan ke bawah'])}
+   ${inp('minresp','Minimal responden per kelompok')}${inp('moe','Margin of error Slovin (0.05 = 5%)')}${inp('perusahaan','Nama perusahaan')}${inp('periode','Periode penilaian')}</div>
+   <div class="row"><button id="sc2">Simpan pengaturan</button><span id="cm" class="mu"></span></div></div>
+   <div class="c"><h2>Skor akhir item — override auditor</h2><div class="mu">Hanya jika skor akhir perlu berbeda dari aturan di atas. Alasan wajib diisi.</div><div class="row"><select id="oi">${MASTER.items.map(i=>`<option value="${i.code}">${i.code} ${esc(i.name.slice(0,70))}</option>`).join('')}</select>
+   <select id="os"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><input id="oa" placeholder="Alasan" size="40"><button id="oadd">Tambah/ubah</button></div>
+   <table id="ot"><tr><th>Item</th><th>Skor</th><th>Alasan</th><th></th></tr>${Object.entries(D.ovr).map(([k,v])=>ovRow(k,v)).join('')}</table><div class="row"><button id="so">Simpan override</button><span id="om" class="mu"></span></div></div>`;
+  const rd=()=>[...document.querySelectorAll('#et tr[data-i]')].map(tr=>({kode:tr.querySelector('[data-f=kode]').value.trim(),nama:tr.querySelector('[data-f=nama]').value,peran:tr.querySelector('[data-f=peran]').value,lingkup:tr.querySelector('[data-f=lingkup]').value,pekerja:+tr.querySelector('[data-f=pekerja]').value||0,aktif:tr.querySelector('[data-f=aktif]').value})).filter(r=>r.kode);
+  $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya'});vEnt()};
+  document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{D.Entitas=rd();D.Entitas.splice(+b.dataset.x,1);vEnt()});
+  $('#se').onclick=async()=>{const rows=rd();if(new Set(rows.map(r=>r.kode)).size!==rows.length)return $('#em').textContent='Kode entitas harus unik';const r=await call({action:'saveEntitas',rows});$('#em').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Entitas=rows};
+  $('#sc2').onclick=async()=>{const rows=[];document.querySelectorAll('[data-cf]').forEach(i=>{D.cfg[i.dataset.cf]=i.value;rows.push({kunci:i.dataset.cf,nilai:i.value})});const r=await call({action:'saveConfig',rows});$('#cm').textContent=r.ok?'Tersimpan.':r.error};
+  $('#oadd').onclick=()=>{if(!$('#oa').value.trim())return $('#om').textContent='Alasan wajib diisi';D.ovr[$('#oi').value]={skor:+$('#os').value,alasan:$('#oa').value};vEnt()};
+  document.querySelectorAll('[data-ox]').forEach(b=>b.onclick=()=>{delete D.ovr[b.dataset.ox];vEnt()});
+  $('#so').onclick=async()=>{const rows=Object.entries(D.ovr).map(([item,v])=>({item,skor:v.skor,alasan:v.alasan}));const r=await call({action:'saveOverride',rows});$('#om').textContent=r.ok?'Tersimpan.':r.error}}
+const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" size="7" value="${esc(e.kode)}"></td><td><input data-f="nama" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:90px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
+const ovRow=(k,v)=>`<tr><td>${k}</td><td class="n">${v.skor}</td><td>${esc(v.alasan)}</td><td><button class="s" data-ox="${k}">Hapus</button></td></tr>`;
+const sel=(k,l,o)=>`<div><div class="mu">${l}</div><select data-cf="${k}">${o.map(x=>`<option ${D.cfg[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
+const inp=(k,l)=>`<div><div class="mu">${l}</div><input data-cf="${k}" value="${esc(D.cfg[k])}"></div>`;
+
+function vEkspor(){
+  $('#v').innerHTML=`<div class="c"><h2>Ekspor</h2><div class="mu">Cadangan data dan bahan untuk laporan Word. Simpan berkala.</div>
+  <div class="row"><button id="e1">Unduh data lengkap (JSON)</button><button class="s" id="e2">Unduh hasil per item (CSV)</button></div></div>`;
+  const dl=(n,t,m)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()};
+  $('#e1').onclick=()=>dl('sml_data.json',JSON.stringify({Entitas:D.Entitas,Populasi:D.Populasi,Skor:D.Skor,Override:D.Override,Config:D.Config,KS_Rekap:D.KS_Rekap,Temuan:D.Temuan,Program:D.Program},null,1),'application/json');
+  $('#e2').onclick=()=>{const R=calc(activeEnt(),ksScores());const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+    dl('hasil_per_item.csv','Kode,Item,Parameter,'+METHODS.join(',')+',Skor akhir,Override\n'+MASTER.items.filter(i=>R.items[i.code]).map(i=>{const x=R.items[i.code];return [i.code,q(i.name),i.param,...METHODS.map(m=>x.ms[m]==null?'':(+x.ms[m].toFixed(2))),x.f??'',x.ov?'ya':''].join(',')}).join('\n'),'text/csv')}}
+
+function login(msg=''){
+  $('#app').innerHTML=`<div class="c" style="max-width:420px"><h2>Masuk</h2><div class="mu">Masukkan kunci akses dari koordinator (auditor = kunci admin, KTT/manajemen = kunci baca).</div><div class="row"><input id="k" type="password" placeholder="Kunci akses" style="flex:1"><button id="go">Masuk</button></div><div class="er">${msg}</div></div>`;
+  $('#go').onclick=async()=>{KEY=$('#k').value.trim();$('#go').disabled=true;const r=await load();if(!r.ok){login(r.error||'Gagal');return}try{sessionStorage.setItem('sml_key',KEY)}catch(e){}shell()};
+  $('#k').onkeydown=e=>{if(e.key==='Enter')$('#go').click()}}
+(async()=>{if(API_URL.startsWith('GANTI'))return $('#app').innerHTML='<div class="c er">API_URL belum diisi (lihat PANDUAN).</div>';
+  try{KEY=sessionStorage.getItem('sml_key')||''}catch(e){}
+  if(KEY){const r=await load();if(r.ok)return shell()}login()})();
+</script></body></html>
