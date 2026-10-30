@@ -37,10 +37,13 @@ let KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1'
 const DEF={agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
 
 async function call(body){try{const r=body?await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,key:KEY})}):await fetch(`${API_URL}?action=all&key=${encodeURIComponent(KEY)}`);return await r.json()}catch(e){return{ok:false,error:'Tidak dapat terhubung ke server'}}}
-async function load(){const r=await call();if(!r.ok)return r;ROLE=r.role;D=r.data;
-  D.cfg={...DEF};D.Config.forEach(c=>D.cfg[c.kunci]=String(c.nilai));
-  D.skor={};D.cat={};D.Skor.forEach(r=>{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.entitas==='_CAT')D.cat[`${r.item}|${r.metode}`]=r.catatan;else if(r.skor!=='')D.skor[k]=Number(r.skor)});
-  D.ovr={};D.Override.forEach(r=>D.ovr[String(r.item)]={skor:Number(r.skor),alasan:r.alasan});return r}
+function prep(X){X.cfg={...DEF};X.Config.forEach(c=>X.cfg[c.kunci]=String(c.nilai));
+  X.skor={};X.cat={};X.Skor.forEach(r=>{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.entitas==='_CAT')X.cat[`${r.item}|${r.metode}`]=r.catatan;else if(r.skor!=='')X.skor[k]=Number(r.skor)});
+  X.ovr={};X.Override.forEach(r=>X.ovr[String(r.item)]={skor:Number(r.skor),alasan:r.alasan});return X}
+async function load(){const r=await call();if(!r.ok)return r;ROLE=r.role;D=prep(r.data);return r}
+const withData=(X,fn)=>{const o=D;D=X;try{return fn()}finally{D=o}};
+const dl=(n,t,m)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()};
+const backupJson=()=>JSON.stringify({Entitas:D.Entitas,Populasi:D.Populasi,Skor:D.Skor,Override:D.Override,Config:D.Config,KS_Rekap:D.KS_Rekap,Temuan:D.Temuan,Program:D.Program},null,1);
 
 /* ===== Perhitungan sesuai Kepdirjen: satu skor per item; parameter = Σ skor item /(5×n item) × bobot ===== */
 const activeEnt=()=>D.Entitas.filter(e=>e.aktif==='Ya');
@@ -78,12 +81,12 @@ function calc(ents,ks,useOvr=true){
 
 /* ===== Tampilan ===== */
 function shell(){
-  const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner']];
+  const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['banding','Perbandingan'],['arsip','Periode & Arsip'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner'],['banding','Perbandingan']];
   $('#who').textContent=`— ${D.cfg.perusahaan||''} ${D.cfg.periode||''} (${ROLE==='admin'?'Auditor/Admin':'Pembaca'})`;
   $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<button class="s" id="rl" style="margin-left:auto">Muat ulang data</button></nav><div id="v"></div>`;
   document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;shell()});
   $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
-  ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor})[TAB]()}
+  ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor,arsip:vArsip,banding:vBanding})[TAB]()}
 
 function vHasil(){
   const ents=activeEnt(),ks=ksScores(),R=calc(ents,ks);window.R=R;
@@ -139,10 +142,29 @@ function vKs(){
     return`<tr><td>${esc(e.kode)}</td><td>${l}</td><td class="n">${ROLE==='admin'?`<input type="number" min="0" style="width:80px" data-p="${e.kode}|${l}" value="${N}">`:N}</td><td class="n">${t}</td><td class="n">${n}</td><td class="n ${t&&n>=t?'ok':'er'}">${t?Math.round(n/t*100)+'%':'-'}</td></tr>`}).join('')).join('');
   $('#v').innerHTML=`<div class="c"><h2>Rekap kuesioner (anonim)</h2><div class="mu">Sampel = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
    ${ROLE==='admin'?'<div class="row"><button id="sp">Simpan populasi</button><span id="pm" class="mu"></span></div>':''}
-   <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Target sampel</th><th class="n">Terkumpul</th><th class="n">%</th></tr>${body}</table></div></div>`;
+   <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Target sampel</th><th class="n">Terkumpul</th><th class="n">%</th></tr>${body}</table></div></div>${ROLE==='admin'?'<div class="c" id="pg"></div>':''}`;
+  if(ROLE==='admin')pengisianUI();
   if(ROLE==='admin')$('#sp').onclick=async()=>{const rows=[];document.querySelectorAll('[data-p]').forEach(i=>{const[e,l]=i.dataset.p.split('|');if(+i.value)rows.push({entitas:e,level:l,populasi:+i.value})});
     const r=await call({action:'savePopulasi',rows});$('#pm').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Populasi=rows}}
 
+let KSL=null,KSF='';
+async function pengisianUI(){
+  const box=$('#pg');if(!box)return;
+  box.innerHTML='<h2>Daftar pengisian kuesioner</h2><div class="mu">Hanya metadata (tanpa jawaban). Gunakan untuk menghapus pengisian uji atau salah input. Jawaban individual tidak ditampilkan.</div><div class="row"><button id="lk">Muat daftar</button><span id="lm" class="mu"></span></div><div id="lt"></div>';
+  $('#lk').onclick=async()=>{$('#lm').textContent='Memuat…';const r=await call({action:'listKs'});if(!r.ok){$('#lm').innerHTML=`<span class="er">${esc(r.error)}</span>`;return}KSL=r.rows;$('#lm').textContent=KSL.length+' pengisian';tabelKs()};
+  if(KSL)tabelKs()}
+function tabelKs(){
+  const ents=[...new Set(KSL.map(r=>r.entitas))],rows=KSL.filter(r=>!KSF||r.entitas===KSF);
+  $('#lt').innerHTML=`<div class="row"><b>Entitas</b><select id="kf"><option value="">Semua</option>${ents.map(e=>`<option ${e===KSF?'selected':''}>${esc(e)}</option>`).join('')}</select>
+   <button class="s" id="ka">Pilih semua yang tampil</button><button id="kd" style="background:#c62828;color:#fff">Hapus terpilih</button></div>
+   <div class="sc" style="max-height:50vh"><table><tr><th></th><th>Tanggal</th><th>Entitas</th><th>Level</th><th>Departemen</th><th>Jabatan</th><th>Area</th><th class="n">Terjawab</th></tr>
+   ${rows.map(r=>`<tr><td><input type="checkbox" data-id="${esc(r.id)}"></td><td>${esc(String(r.tanggal).slice(0,10))}</td><td>${esc(r.entitas)}</td><td>${esc(r.level)}</td><td>${esc(r.departemen)}</td><td>${esc(r.jabatan)}</td><td>${esc(r.area)}</td><td class="n">${r.terjawab}</td></tr>`).join('')}</table></div>`;
+  $('#kf').onchange=e=>{KSF=e.target.value;tabelKs()};
+  $('#ka').onclick=()=>document.querySelectorAll('#lt [data-id]').forEach(c=>c.checked=true);
+  $('#kd').onclick=async()=>{const ids=[...document.querySelectorAll('#lt [data-id]:checked')].map(c=>c.dataset.id);if(!ids.length)return;
+    if(!confirm(`Hapus ${ids.length} pengisian kuesioner? Tindakan ini tidak bisa dibatalkan.`))return;
+    const r=await call({action:'deleteKs',ids});if(!r.ok){alert(r.error);return}
+    KSL=KSL.filter(x=>!ids.includes(x.id));await load();vKs()}}
 function vEnt(){
   const E=D.Entitas;
   $('#v').innerHTML=`<div class="c"><h2>Entitas</h2><div class="mu">Tambah/kurangi IUJP dan labor supply di sini. Entitas "Tidak" aktif tidak ikut perhitungan dan kuesioner. Perubahan diterapkan setelah Simpan.</div>
@@ -168,11 +190,46 @@ const ovRow=(k,v)=>`<tr><td>${k}</td><td class="n">${v.skor}</td><td>${esc(v.ala
 const sel=(k,l,o)=>`<div><div class="mu">${l}</div><select data-cf="${k}">${o.map(x=>`<option ${D.cfg[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
 const inp=(k,l)=>`<div><div class="mu">${l}</div><input data-cf="${k}" value="${esc(D.cfg[k])}"></div>`;
 
+function vArsip(){
+  const m=D.Arsip_Meta||[];
+  $('#v').innerHTML=`<div class="c"><h2>Periode berjalan: <b>${esc(D.cfg.periode||'(belum diisi)')}</b></h2>
+  <div class="mu">Arsipkan menyimpan seluruh hasil periode ini (skor, rekap kuesioner, override, temuan, program, pengaturan) ke arsip di dalam database, lalu <b>mengosongkan</b> skor, jawaban kuesioner, override, temuan, dan program untuk periode baru. Entitas, populasi, dan pengaturan tetap. Jawaban individual tidak masuk arsip, hanya rekap per entitas dan level.</div>
+  <div class="row"><b>Nama periode baru</b><input id="pb" placeholder="mis. 2027" size="12"><button id="ab" style="background:#c62828;color:#fff">Arsipkan &amp; mulai periode baru</button><span id="am" class="mu"></span></div>
+  <div class="mu">Sebelum diarsipkan, salinan cadangan (JSON) otomatis terunduh ke komputer Anda.</div></div>
+  <div class="c"><h2>Arsip tersimpan</h2>${m.length?`<table><tr><th>Periode</th><th>Diarsipkan</th><th></th></tr>${m.map(x=>`<tr><td>${esc(x.periode)}</td><td>${esc(x.tanggal)}</td><td><button class="s" data-bd="${esc(x.periode)}">Bandingkan dengan periode berjalan</button></td></tr>`).join('')}</table>`:'<div class="mu">Belum ada arsip.</div>'}</div>`;
+  document.querySelectorAll('[data-bd]').forEach(b=>b.onclick=()=>{BANDING=b.dataset.bd;TAB='banding';shell()});
+  $('#ab').onclick=async()=>{const pb=$('#pb').value.trim();if(!pb)return $('#am').textContent='Isi nama periode baru.';
+    if(!D.cfg.periode)return $('#am').textContent='Isi dulu "Periode" periode berjalan di Entitas & Pengaturan.';
+    if(prompt(`Periode "${D.cfg.periode}" akan diarsipkan dan data periode ini dikosongkan.\nKetik ARSIPKAN untuk melanjutkan.`)!=='ARSIPKAN')return;
+    dl('cadangan_sml_'+D.cfg.periode+'.json',backupJson(),'application/json');
+    $('#ab').disabled=true;$('#am').textContent='Mengarsipkan…';
+    const r=await call({action:'arsipkan',periodeBaru:pb,konfirmasi:'ARSIPKAN'});
+    if(!r.ok){$('#ab').disabled=false;$('#am').innerHTML=`<span class="er">${esc(r.error)}</span>`;return}
+    DIRTY={};KSL=null;await load();vArsip();$('#am').innerHTML=`<span class="ok">Periode ${esc(r.arsip)} diarsipkan. Periode berjalan: ${esc(r.periode)}.</span>`}}
+
+let BANDING='';
+async function vBanding(){
+  const m=D.Arsip_Meta||[];
+  if(!m.length){$('#v').innerHTML='<div class="c"><h2>Perbandingan antar periode</h2><div class="mu">Belum ada arsip periode sebelumnya. Perbandingan tersedia setelah periode pertama diarsipkan.</div></div>';return}
+  if(!BANDING||!m.some(x=>x.periode===BANDING))BANDING=m[m.length-1].periode;
+  $('#v').innerHTML=`<div class="c"><div class="row"><b>Bandingkan periode berjalan (${esc(D.cfg.periode||'-')}) dengan</b><select id="bs">${m.map(x=>`<option ${x.periode===BANDING?'selected':''}>${esc(x.periode)}</option>`).join('')}</select></div></div><div id="bh"><div class="c mu">Memuat arsip…</div></div>`;
+  $('#bs').onchange=e=>{BANDING=e.target.value;vBanding()};
+  let r;try{r=await (await fetch(`${API_URL}?action=arsip&key=${encodeURIComponent(KEY)}&periode=${encodeURIComponent(BANDING)}`)).json()}catch(e){r={ok:false,error:'Tidak dapat terhubung'}}
+  if(!r.ok)return $('#bh').innerHTML=`<div class="c er">${esc(r.error)}</div>`;
+  const X=prep(r.data),RA=withData(X,()=>calc(activeEnt(),ksScores())),RC=calc(activeEnt(),ksScores());
+  const dlt=(a,b,f=4)=>{const d=a-b;return`<span class="${d>0.00005?'ok':d<-0.00005?'er':'mu'}">${d>0.00005?'▲ +':d<-0.00005?'▼ ':'= '}${d.toFixed(f)}</span>`};
+  $('#bh').innerHTML=`<div class="grid"><div class="c"><div class="mu">${esc(BANDING)}</div><div class="k">${RA.total.toFixed(4)}</div>${chip(RA.cat)}</div>
+   <div class="c"><div class="mu">${esc(D.cfg.periode||'Berjalan')}</div><div class="k">${RC.total.toFixed(4)}</div>${chip(RC.cat)}${RC.comp<1?'<div class="mu er">belum lengkap ('+(RC.comp*100).toFixed(0)+'%)</div>':''}</div>
+   <div class="c"><div class="mu">Selisih nilai total</div><div class="k">${dlt(RC.total,RA.total)}</div></div></div>
+  <div class="c"><h2>Per indikator</h2><table><tr><th>Indikator</th><th class="n">${esc(BANDING)}</th><th class="n">${esc(D.cfg.periode||'Berjalan')}</th><th class="n">Selisih</th><th>Tingkat lalu → kini</th></tr>
+  ${[1,2,3,4].map(i=>`<tr><td>${i}. ${esc(RC.inds[i].name)}</td><td class="n">${RA.inds[i].cap.toFixed(4)}</td><td class="n">${RC.inds[i].cap.toFixed(4)}</td><td class="n">${dlt(RC.inds[i].cap,RA.inds[i].cap)}</td><td>${chip(RA.inds[i].cat)} → ${chip(RC.inds[i].cat)}</td></tr>`).join('')}</table></div>
+  <div class="c"><h2>Per parameter</h2><div class="sc"><table><tr><th>Parameter</th><th class="n">${esc(BANDING)}</th><th class="n">${esc(D.cfg.periode||'Berjalan')}</th><th class="n">Selisih (nilai capaian)</th></tr>
+  ${Object.keys(RC.params).map(p=>`<tr><td>${p} ${esc(RC.params[p].name)}</td><td class="n">${RA.params[p].cap.toFixed(4)}</td><td class="n">${RC.params[p].cap.toFixed(4)}</td><td class="n">${dlt(RC.params[p].cap,RA.params[p].cap)}</td></tr>`).join('')}</table></div></div>`}
+
 function vEkspor(){
   $('#v').innerHTML=`<div class="c"><h2>Ekspor</h2><div class="mu">Cadangan data dan bahan untuk laporan Word. Simpan berkala.</div>
   <div class="row"><button id="e1">Unduh data lengkap (JSON)</button><button class="s" id="e2">Unduh hasil per item (CSV)</button></div></div>`;
-  const dl=(n,t,m)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()};
-  $('#e1').onclick=()=>dl('sml_data.json',JSON.stringify({Entitas:D.Entitas,Populasi:D.Populasi,Skor:D.Skor,Override:D.Override,Config:D.Config,KS_Rekap:D.KS_Rekap,Temuan:D.Temuan,Program:D.Program},null,1),'application/json');
+  $('#e1').onclick=()=>dl('sml_data_'+(D.cfg.periode||'')+'.json',backupJson(),'application/json');
   $('#e2').onclick=()=>{const R=calc(activeEnt(),ksScores());const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
     dl('hasil_per_item.csv','Kode,Item,Parameter,'+METHODS.join(',')+',Skor akhir,Override\n'+MASTER.items.filter(i=>R.items[i.code]).map(i=>{const x=R.items[i.code];return [i.code,q(i.name),i.param,...METHODS.map(m=>x.ms[m]==null?'':(+x.ms[m].toFixed(2))),x.f??'',x.ov?'ya':''].join(',')}).join('\n'),'text/csv')}}
 
