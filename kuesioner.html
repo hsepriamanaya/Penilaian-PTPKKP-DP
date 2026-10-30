@@ -116,6 +116,7 @@ function form(ent, lv, dp, kd, jb, ar) {
   $('#app').innerHTML = `<div class="bar"><i id="pb"></i></div>` + items.map((it, k) => `<div class="c"><div class="q"><span class="n">${k + 1}/${items.length}</span> ${it.q}</div>` +
     it.opts.map((t, j) => `<label class="o"><input type="radio" name="q${it.code}" value="${j + 1}"><span>${t}</span></label>`).join('') + `</div>`).join('') +
     `<div id="m"></div><button id="send">Kirim jawaban</button>`;
+  window.scrollTo(0, 0);   // mulai dari pertanyaan pertama (posisi scroll halaman sebelumnya tidak terbawa)
   const upd = () => { $('#pb').style.width = Object.keys(ans).length / items.length * 100 + '%'; };
   document.querySelectorAll('input[type=radio]').forEach(r => r.onchange = () => { ans[r.name.slice(1)] = +r.value; upd(); });
   $('#send').onclick = async () => {
@@ -123,7 +124,7 @@ function form(ent, lv, dp, kd, jb, ar) {
     if (miss) return $('#m').innerHTML = `<div class="msg er">Masih ada ${miss} pertanyaan yang belum dijawab.</div>`;
     $('#send').disabled = true; $('#m').innerHTML = '<div class="msg mu">Mengirim…</div>';
     const r = await api({ action: 'submit', kode: kd, entitas: ent, level: lv, departemen: dp, jabatan: jb, area: ar, jawaban: ans });
-    if (r.ok) { try { localStorage.setItem('ks_done_' + ent, '1'); } catch (e) {} $('#app').innerHTML = '<div class="c"><div class="msg ok">Terima kasih. Jawaban Anda sudah terkirim.</div></div>'; }
+    if (r.ok) { try { localStorage.setItem('ks_done_' + ent, '1'); } catch (e) {} window.scrollTo(0, 0); $('#app').innerHTML = '<div class="c"><div class="msg ok">Terima kasih. Jawaban Anda sudah terkirim.</div></div>'; }
     else { $('#send').disabled = false; $('#m').innerHTML = `<div class="msg er">${r.error || 'Gagal mengirim'}</div>`; }
   };
 }
