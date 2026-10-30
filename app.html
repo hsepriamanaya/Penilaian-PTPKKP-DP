@@ -34,6 +34,7 @@ const CATS=['Dasar','Reaktif','Terencana','Proaktif','Resilient'];
 const cat=(x,th)=>{x=Math.round(x*1e4)/1e4;for(let i=0;i<4;i++)if(x<th[i])return CATS[i];return CATS[4]};
 const chip=c=>`<span class="chip ${c}">${c}</span>`;
 let KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1';
+let SCOPE='*',CUSTOM=[];try{SCOPE=sessionStorage.getItem('sml_scope')||'*';CUSTOM=JSON.parse(sessionStorage.getItem('sml_custom')||'[]')}catch(e){}
 const DEF={agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
 
 async function call(body){try{const r=body?await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,key:KEY})}):await fetch(`${API_URL}?action=all&key=${encodeURIComponent(KEY)}`);return await r.json()}catch(e){return{ok:false,error:'Tidak dapat terhubung ke server'}}}
@@ -46,7 +47,14 @@ const dl=(n,t,m)=>{const a=document.createElement('a');a.href=URL.createObjectUR
 const backupJson=()=>JSON.stringify({Entitas:D.Entitas,Populasi:D.Populasi,Skor:D.Skor,Override:D.Override,Config:D.Config,KS_Rekap:D.KS_Rekap,Temuan:D.Temuan,Program:D.Program},null,1);
 
 /* ===== Perhitungan sesuai Kepdirjen: satu skor per item; parameter = Σ skor item /(5×n item) × bobot ===== */
-const activeEnt=()=>D.Entitas.filter(e=>e.aktif==='Ya');
+const indukList=e=>String(e.induk||'').split(',').map(x=>x.trim()).filter(Boolean);
+const allEnt=()=>D.Entitas.filter(e=>e.aktif==='Ya');
+/* Cakupan penilaian: '*' = seluruh grup; 'iup:KODE' = satu IUP + kontraktor/vendor yang bekerja untuknya; 'custom' = pilihan manual */
+function activeEnt(){const all=allEnt();
+  if(SCOPE.startsWith('iup:')){const k=SCOPE.slice(4);return all.filter(e=>e.kode===k||(e.peran!=='IUP'&&(!indukList(e).length||indukList(e).includes(k))))}
+  if(SCOPE==='custom'){const r=all.filter(e=>CUSTOM.includes(e.kode));return r.length?r:all}
+  return all}
+const scopeName=()=>{if(SCOPE==='*')return'Seluruh grup';if(SCOPE==='custom')return'Pilihan manual';const e=D.Entitas.find(x=>x.kode===SCOPE.slice(4));return e?e.nama+' + kontraktor/vendornya':SCOPE}
 function ksScores(){ // {entitas: {item: skor}} dari rekap kuesioner
   const min=+D.cfg.minresp||1,res={};
   activeEnt().forEach(e=>{res[e.kode]={};KS_ITEMS_M.forEach(it=>{const sc=[];
@@ -82,8 +90,12 @@ function calc(ents,ks,useOvr=true){
 /* ===== Tampilan ===== */
 function shell(){
   const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['banding','Perbandingan'],['arsip','Periode & Arsip'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner'],['banding','Perbandingan']];
+  const iups=allEnt().filter(e=>e.peran==='IUP');
+  if(SCOPE.startsWith('iup:')&&!iups.some(e=>'iup:'+e.kode===SCOPE))SCOPE='*';
   $('#who').textContent=`— ${D.cfg.perusahaan||''} ${D.cfg.periode||''} (${ROLE==='admin'?'Auditor/Admin':'Pembaca'})`;
-  $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<button class="s" id="rl" style="margin-left:auto">Muat ulang data</button><button class="s" id="lo">Keluar</button></nav><div id="v"></div>`;
+  $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<span class="row" style="margin-left:auto"><b>Cakupan</b><select id="sc"><option value="*" ${SCOPE==='*'?'selected':''}>Seluruh grup</option>${iups.map(e=>`<option value="iup:${esc(e.kode)}" ${SCOPE==='iup:'+e.kode?'selected':''}>${esc(e.nama)} + kontraktor/vendor</option>`).join('')}<option value="custom" ${SCOPE==='custom'?'selected':''}>Pilih manual…</option></select></span><button class="s" id="rl">Muat ulang data</button><button class="s" id="lo">Keluar</button></nav>${SCOPE==='custom'?`<div class="c"><b>Entitas yang dihitung:</b> ${allEnt().map(e=>`<label style="margin-right:14px"><input type="checkbox" data-cs="${esc(e.kode)}" ${CUSTOM.includes(e.kode)?'checked':''}> ${esc(e.kode)}</label>`).join('')}</div>`:''}<div id="v"></div>`;
+  $('#sc').onchange=e=>{SCOPE=e.target.value;try{sessionStorage.setItem('sml_scope',SCOPE)}catch(x){}shell()};
+  document.querySelectorAll('[data-cs]').forEach(c=>c.onchange=()=>{CUSTOM=[...document.querySelectorAll('[data-cs]:checked')].map(i=>i.dataset.cs);try{sessionStorage.setItem('sml_custom',JSON.stringify(CUSTOM))}catch(x){}shell()});
   document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;shell()});
   $('#lo').onclick=()=>logout();
   $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
@@ -96,7 +108,7 @@ function vHasil(){
   const perEnt=ents.map(e=>{const r=calc([e],ks);return{e,r}});
   $('#v').innerHTML=`<div class="grid"><div class="c"><div class="mu">Nilai total</div><div class="k">${R.total.toFixed(4)}</div>${chip(R.cat)}</div>
    <div class="c"><div class="mu">Kelengkapan input</div><div class="k ${R.comp<1?'er':'ok'}">${(R.comp*100).toFixed(0)}%</div><div class="mu">${R.comp<1?'Skor yang belum diisi dihitung 0 — total belum final':'Lengkap'}</div></div>
-   <div class="c"><div class="mu">Aturan aktif</div><div>Antar-entitas: <b>${D.cfg.agg}</b><br>Skor akhir item: <b>${D.cfg.itemrule}</b><br>Entitas aktif: <b>${ents.length}</b></div></div></div>
+   <div class="c"><div class="mu">Aturan aktif</div><div>Cakupan: <b>${esc(scopeName())}</b><br>Antar-entitas: <b>${D.cfg.agg}</b><br>Skor akhir item: <b>${D.cfg.itemrule}</b><br>Entitas aktif: <b>${ents.length}</b></div></div></div>
   <div class="c"><h2>Per indikator</h2><table><tr><th>No</th><th>Indikator</th><th class="n">Bobot</th><th class="n">Nilai capaian</th><th class="n">% terpenuhi</th><th>Tingkat</th></tr>
    ${[1,2,3,4].map(i=>`<tr><td>${i}</td><td>${esc(R.inds[i].name)}</td><td class="n">${R.inds[i].mx.toFixed(2)}</td><td class="n">${R.inds[i].cap.toFixed(4)}</td><td class="n">${(R.inds[i].pct*100).toFixed(0)}%</td><td>${chip(R.inds[i].cat)}</td></tr>`).join('')}</table></div>
   <div class="c"><h2>Per parameter (urut prioritas gap)</h2><div class="sc"><table><tr><th class="n">Prioritas</th><th>Parameter</th><th class="n">Item</th><th class="n">Bobot</th><th class="n">Σ skor</th><th class="n">%</th><th class="n">Nilai capaian</th><th class="n">Gap</th><th>Tingkat</th></tr>
@@ -168,8 +180,8 @@ function tabelKs(){
     KSL=KSL.filter(x=>!ids.includes(x.id));await load();vKs()}}
 function vEnt(){
   const E=D.Entitas;
-  $('#v').innerHTML=`<div class="c"><h2>Entitas</h2><div class="mu">Tambah/kurangi IUJP dan labor supply di sini. Entitas "Tidak" aktif tidak ikut perhitungan dan kuesioner. Perubahan diterapkan setelah Simpan.</div>
-   <div class="sc"><table id="et"><tr><th>Kode</th><th>Nama</th><th>Peran</th><th>Lingkup</th><th>Jml pekerja</th><th>Aktif</th><th></th></tr>${E.map((e,i)=>entRow(e,i)).join('')}</table></div>
+  $('#v').innerHTML=`<div class="c"><h2>Entitas</h2><div class="mu"><b>Grup dengan beberapa IUP:</b> tambahkan tiap IUP sebagai entitas berperan IUP. Pada kontraktor/vendor isi <b>Induk IUP</b> dengan kode IUP tempatnya bekerja (mis. <code>DP</code>, atau <code>DP,PE</code> bila satu penilaian berlaku untuk dua IUP). Kosongkan bila melayani semua IUP. Bila kontraktor sama punya PJO dan kondisi berbeda di tiap IUP, buat dua entitas (mis. AMM-DP dan AMM-PE) agar dinilai terpisah. Pemilih <b>Cakupan</b> di atas menentukan IUP mana yang dihitung.<br>Tambah/kurangi IUJP dan labor supply di sini. Entitas "Tidak" aktif tidak ikut perhitungan dan kuesioner. Perubahan diterapkan setelah Simpan.</div>
+   <div class="sc"><table id="et"><tr><th>Kode</th><th>Nama</th><th>Peran</th><th>Lingkup</th><th>Jml pekerja</th><th>Aktif</th><th>Induk IUP</th><th></th></tr>${E.map((e,i)=>entRow(e,i)).join('')}</table></div>
    <div class="row"><button class="s" id="ad">+ Tambah entitas</button><button id="se">Simpan entitas</button><span id="em" class="mu"></span></div></div>
    <div class="c"><h2>Pengaturan</h2><div class="grid">
    ${sel('agg','Konsolidasi antar-entitas',['MIN','RATA-RATA TERBOBOT'])}${sel('itemrule','Skor akhir item dari beberapa metode',['MIN','RATA-RATA'])}${sel('ksround','Pembulatan skor kuesioner',['Pembulatan biasa','Dibulatkan ke bawah'])}
@@ -178,15 +190,15 @@ function vEnt(){
    <div class="c"><h2>Skor akhir item — override auditor</h2><div class="mu">Hanya jika skor akhir perlu berbeda dari aturan di atas. Alasan wajib diisi.</div><div class="row"><select id="oi">${MASTER.items.map(i=>`<option value="${i.code}">${i.code} ${esc(i.name.slice(0,70))}</option>`).join('')}</select>
    <select id="os"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><input id="oa" placeholder="Alasan" size="40"><button id="oadd">Tambah/ubah</button></div>
    <table id="ot"><tr><th>Item</th><th>Skor</th><th>Alasan</th><th></th></tr>${Object.entries(D.ovr).map(([k,v])=>ovRow(k,v)).join('')}</table><div class="row"><button id="so">Simpan override</button><span id="om" class="mu"></span></div></div>`;
-  const rd=()=>[...document.querySelectorAll('#et tr[data-i]')].map(tr=>({kode:tr.querySelector('[data-f=kode]').value.trim(),nama:tr.querySelector('[data-f=nama]').value,peran:tr.querySelector('[data-f=peran]').value,lingkup:tr.querySelector('[data-f=lingkup]').value,pekerja:+tr.querySelector('[data-f=pekerja]').value||0,aktif:tr.querySelector('[data-f=aktif]').value})).filter(r=>r.kode);
-  $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya'});vEnt()};
+  const rd=()=>[...document.querySelectorAll('#et tr[data-i]')].map(tr=>({kode:tr.querySelector('[data-f=kode]').value.trim(),nama:tr.querySelector('[data-f=nama]').value,peran:tr.querySelector('[data-f=peran]').value,lingkup:tr.querySelector('[data-f=lingkup]').value,pekerja:+tr.querySelector('[data-f=pekerja]').value||0,aktif:tr.querySelector('[data-f=aktif]').value,induk:tr.querySelector('[data-f=induk]').value.trim()})).filter(r=>r.kode);
+  $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya',induk:''});vEnt()};
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{D.Entitas=rd();D.Entitas.splice(+b.dataset.x,1);vEnt()});
   $('#se').onclick=async()=>{const rows=rd();if(new Set(rows.map(r=>r.kode)).size!==rows.length)return $('#em').textContent='Kode entitas harus unik';const r=await call({action:'saveEntitas',rows});$('#em').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Entitas=rows};
   $('#sc2').onclick=async()=>{const rows=[];document.querySelectorAll('[data-cf]').forEach(i=>{D.cfg[i.dataset.cf]=i.value;rows.push({kunci:i.dataset.cf,nilai:i.value})});const r=await call({action:'saveConfig',rows});$('#cm').textContent=r.ok?'Tersimpan.':r.error};
   $('#oadd').onclick=()=>{if(!$('#oa').value.trim())return $('#om').textContent='Alasan wajib diisi';D.ovr[$('#oi').value]={skor:+$('#os').value,alasan:$('#oa').value};vEnt()};
   document.querySelectorAll('[data-ox]').forEach(b=>b.onclick=()=>{delete D.ovr[b.dataset.ox];vEnt()});
   $('#so').onclick=async()=>{const rows=Object.entries(D.ovr).map(([item,v])=>({item,skor:v.skor,alasan:v.alasan}));const r=await call({action:'saveOverride',rows});$('#om').textContent=r.ok?'Tersimpan.':r.error}}
-const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" size="7" value="${esc(e.kode)}"></td><td><input data-f="nama" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:90px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
+const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" size="7" value="${esc(e.kode)}"></td><td><input data-f="nama" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:90px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><input data-f="induk" size="9" placeholder="${e.peran==='IUP'?'(IUP)':'kode IUP, mis. DP,PE'}" value="${esc(e.induk||'')}" ${e.peran==='IUP'?'disabled':''}></td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
 const ovRow=(k,v)=>`<tr><td>${k}</td><td class="n">${v.skor}</td><td>${esc(v.alasan)}</td><td><button class="s" data-ox="${k}">Hapus</button></td></tr>`;
 const sel=(k,l,o)=>`<div><div class="mu">${l}</div><select data-cf="${k}">${o.map(x=>`<option ${D.cfg[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
 const inp=(k,l)=>`<div><div class="mu">${l}</div><input data-cf="${k}" value="${esc(D.cfg[k])}"></div>`;
@@ -232,7 +244,7 @@ function vEkspor(){
   <div class="row"><button id="e1">Unduh data lengkap (JSON)</button><button class="s" id="e2">Unduh hasil per item (CSV)</button></div></div>`;
   $('#e1').onclick=()=>dl('sml_data_'+(D.cfg.periode||'')+'.json',backupJson(),'application/json');
   $('#e2').onclick=()=>{const R=calc(activeEnt(),ksScores());const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
-    dl('hasil_per_item.csv','Kode,Item,Parameter,'+METHODS.join(',')+',Skor akhir,Override\n'+MASTER.items.filter(i=>R.items[i.code]).map(i=>{const x=R.items[i.code];return [i.code,q(i.name),i.param,...METHODS.map(m=>x.ms[m]==null?'':(+x.ms[m].toFixed(2))),x.f??'',x.ov?'ya':''].join(',')}).join('\n'),'text/csv')}}
+    dl('hasil_per_item_'+scopeName().replace(/[^A-Za-z0-9]+/g,'_')+'.csv','Kode,Item,Parameter,'+METHODS.join(',')+',Skor akhir,Override\n'+MASTER.items.filter(i=>R.items[i.code]).map(i=>{const x=R.items[i.code];return [i.code,q(i.name),i.param,...METHODS.map(m=>x.ms[m]==null?'':(+x.ms[m].toFixed(2))),x.f??'',x.ov?'ya':''].join(',')}).join('\n'),'text/csv')}}
 
 function logout(auto){
   if(!auto&&Object.keys(DIRTY).length&&!confirm('Ada skor yang belum disimpan. Keluar akan menghapusnya. Lanjut?'))return;
