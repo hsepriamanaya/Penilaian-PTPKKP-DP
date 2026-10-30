@@ -74,15 +74,24 @@ function intro() {
   <label class="f">Departemen *</label><select id="dp"><option value="">— pilih —</option>${DEPARTEMEN.map(d => `<option>${d}</option>`).join('')}</select>
   <label class="f">Level jabatan * <span class="n">— pilih sesuai jabatan Anda saat ini</span></label>
   ${lvl.map(x => `<label class="lv"><input type="radio" name="lvl" value="${x.l}"><b>${x.l}</b><small>${x.d}</small></label>`).join('')}
-  <label class="f">Jabatan rinci *</label><select id="jb" disabled><option value="">— pilih level dulu —</option></select>
+  <label class="f">Jabatan rinci *</label><select id="jb"></select><div class="mu" id="jbi" style="margin-top:4px"></div>
   <label class="f">Area kerja * <span class="n">(boleh lebih dari satu)</span></label>
   <div id="ar">${AREA.map(a => `<label class="ck"><input type="checkbox" value="${a}">${a}</label>`).join('')}</div>
   ${cfg.perlu_kode ? '<label class="f">Kode kuesioner *</label><input id="kd" autocomplete="off" placeholder="Kode dari koordinator">' : ''}
   <div id="m"></div><button id="go" style="margin-top:12px">Mulai</button></div>`;
-  document.querySelectorAll('input[name=lvl]').forEach(r => r.onchange = () => {
-    const x = LEVEL_INFO.find(i => i.l === r.value);
-    $('#jb').disabled = false; $('#jb').innerHTML = '<option value="">— pilih —</option>' + x.j.map(j => `<option>${j}</option>`).join('');
-  });
+  const fillJb = (lv, keep) => {   // lv = level terpilih (atau null → tampilkan semua jabatan, dikelompokkan per level)
+    const opt = x => x.j.map(j => `<option ${j === keep ? 'selected' : ''}>${j}</option>`).join('');
+    $('#jb').innerHTML = '<option value="">— pilih —</option>' + (lv ? opt(LEVEL_INFO.find(i => i.l === lv))
+      : lvl.map(x => `<optgroup label="${x.l}">${opt(x)}</optgroup>`).join(''));
+    $('#jbi').textContent = lv ? 'Menampilkan jabatan level ' + lv + '.' : 'Pilih level di atas, atau pilih jabatan langsung (level akan terisi otomatis).';
+  };
+  fillJb(null);
+  document.querySelectorAll('input[name=lvl]').forEach(r => r.onchange = () => fillJb(r.value));
+  $('#jb').onchange = () => {   // memilih jabatan otomatis menetapkan level agar tidak salah pasangan
+    const x = LEVEL_INFO.find(i => i.j.includes($('#jb').value)); if (!x) return;
+    const radio = document.querySelector(`input[name=lvl][value="${x.l}"]`);
+    if (radio && !radio.checked) { radio.checked = true; fillJb(x.l, $('#jb').value); }
+  };
   document.querySelectorAll('#ar input').forEach(c => c.onchange = () => { // "All Area" tidak digabung dengan area lain
     if (c.value === 'All Area' && c.checked) document.querySelectorAll('#ar input').forEach(o => { if (o !== c) o.checked = false; });
     else if (c.checked) document.querySelectorAll('#ar input').forEach(o => { if (o.value === 'All Area') o.checked = false; });
@@ -91,6 +100,8 @@ function intro() {
     const ent = $('#ent').value, dp = $('#dp').value, lr = document.querySelector('input[name=lvl]:checked'), jb = $('#jb').value;
     const ar = [...document.querySelectorAll('#ar input:checked')].map(c => c.value);
     const miss = [!ent && 'entitas', !dp && 'departemen', !lr && 'level jabatan', !jb && 'jabatan rinci', !ar.length && 'area kerja'].filter(Boolean);
+    const okJb = lr && LEVEL_INFO.find(i => i.l === lr.value)?.j.includes(jb);
+    if (jb && lr && !okJb) return $('#m').innerHTML = '<div class="msg er">Jabatan rinci tidak sesuai dengan level yang dipilih. Pilih ulang.</div>';
     if (miss.length) return $('#m').innerHTML = `<div class="msg er">Lengkapi dulu: ${miss.join(', ')}.</div>`;
     if (localStorage.getItem('ks_done_' + ent)) { if (!confirm('Perangkat ini sudah pernah mengirim jawaban untuk entitas ini. Kirim lagi?')) return; }
     form(ent, lr.value, dp, cfg.perlu_kode ? $('#kd').value.trim() : '', jb, ar.join('; '));
