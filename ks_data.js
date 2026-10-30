@@ -62,7 +62,7 @@ const KS_ITEMS = [
   ],
   "opts": [
    "Sebagian besar pekerja memiliki persepsi bahwa manajemen tidak mendukung penerapan kebijakan KP. Kebijakan KP masih sering dikompromikan untuk kepentingan lainnya dalam kondisi tertentu.",
-   "Sebagian besar pekerja memiliki persepsi bahwa komitmen untuk menerapkan kebijakan KP ketika sudah terjadi kecelakaan dan kerugian.",
+   "Sebagian besar pekerja memiliki persepsi bahwa komitmen untuk menerapkan kebijakan KP hanya ketika sudah terjadi kecelakaan dan kerugian.",
    "Sebagian besar pekerja memiliki persepsi bahwa manajemen telah berkomitmen untuk menerapkan kebijakan tanpa harus terjadi kecelakaan dan kerugian terlebih dahulu, melalui program KP terencana",
    "Sebagian besar pekerja memiliki persepsi bahwa manajemen telah berkomitmen untuk menerapan kebijakan dan upaya-upaya KP dan apabila terjadi konflik kepentingan, manajemen memiliki inisiatif untuk mengevaluasi analisis risiko dan mengutamakan aspek KP tetap terpenuhi",
    "Sebagian besar pekerja memiliki persepsi bahwa manajemen telah berhasil menerapkan kebijakan dan upaya-upaya KP, mengutamakan aspek KP saat terjadi konflik kepentingan, dan telah menjadi panutanteladan yang baik bagi pekerja dalam penerapan KP"
