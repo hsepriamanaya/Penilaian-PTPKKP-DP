@@ -83,8 +83,9 @@ function calc(ents,ks,useOvr=true){
 function shell(){
   const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['banding','Perbandingan'],['arsip','Periode & Arsip'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner'],['banding','Perbandingan']];
   $('#who').textContent=`— ${D.cfg.perusahaan||''} ${D.cfg.periode||''} (${ROLE==='admin'?'Auditor/Admin':'Pembaca'})`;
-  $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<button class="s" id="rl" style="margin-left:auto">Muat ulang data</button></nav><div id="v"></div>`;
+  $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<button class="s" id="rl" style="margin-left:auto">Muat ulang data</button><button class="s" id="lo">Keluar</button></nav><div id="v"></div>`;
   document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;shell()});
+  $('#lo').onclick=()=>logout();
   $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
   ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor,arsip:vArsip,banding:vBanding})[TAB]()}
 
@@ -233,9 +234,17 @@ function vEkspor(){
   $('#e2').onclick=()=>{const R=calc(activeEnt(),ksScores());const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
     dl('hasil_per_item.csv','Kode,Item,Parameter,'+METHODS.join(',')+',Skor akhir,Override\n'+MASTER.items.filter(i=>R.items[i.code]).map(i=>{const x=R.items[i.code];return [i.code,q(i.name),i.param,...METHODS.map(m=>x.ms[m]==null?'':(+x.ms[m].toFixed(2))),x.f??'',x.ov?'ya':''].join(',')}).join('\n'),'text/csv')}}
 
+function logout(auto){
+  if(!auto&&Object.keys(DIRTY).length&&!confirm('Ada skor yang belum disimpan. Keluar akan menghapusnya. Lanjut?'))return;
+  KEY='';ROLE='';D=null;DIRTY={};KSL=null;BANDING='';TAB='hasil';
+  try{sessionStorage.removeItem('sml_key')}catch(e){}
+  login(auto?'Sesi berakhir karena tidak ada aktivitas. Masuk kembali.':'')}
+/* keluar otomatis setelah 30 menit tanpa aktivitas (aman bila komputer ditinggal) */
+let _idle;const _rst=()=>{clearTimeout(_idle);if(KEY)_idle=setTimeout(()=>{if(KEY&&!Object.keys(DIRTY).length)logout(true);else _rst()},30*60*1000)};
+['click','keydown','mousemove','touchstart'].forEach(ev=>document.addEventListener(ev,_rst,{passive:true}));
 function login(msg=''){
   $('#app').innerHTML=`<div class="c" style="max-width:420px"><h2>Masuk</h2><div class="mu">Masukkan kunci akses dari koordinator (auditor = kunci admin, KTT/manajemen = kunci baca).</div><div class="row"><input id="k" type="password" placeholder="Kunci akses" style="flex:1"><button id="go">Masuk</button></div><div class="er">${msg}</div></div>`;
-  $('#go').onclick=async()=>{KEY=$('#k').value.trim();$('#go').disabled=true;const r=await load();if(!r.ok){login(r.error||'Gagal');return}try{sessionStorage.setItem('sml_key',KEY)}catch(e){}shell()};
+  $('#go').onclick=async()=>{KEY=$('#k').value.trim();$('#go').disabled=true;const r=await load();if(!r.ok){login(r.error||'Gagal');return}try{sessionStorage.setItem('sml_key',KEY)}catch(e){}_rst();shell()};
   $('#k').onkeydown=e=>{if(e.key==='Enter')$('#go').click()}}
 (async()=>{if(API_URL.startsWith('GANTI'))return $('#app').innerHTML='<div class="c er">API_URL belum diisi (lihat PANDUAN).</div>';
   try{KEY=sessionStorage.getItem('sml_key')||''}catch(e){}
