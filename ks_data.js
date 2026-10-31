@@ -44,7 +44,7 @@ const KS_ITEMS = [
   ],
   "opts": [
    "Sebagian besar Perwakilan Departemen/Bagian/Seksi tidak berperan dalam Tim Manajemen Risiko KP.",
-   "Sebagian besar Perwakilan Departemen/Bagian/Seksi yang dipilih melaksanakan tanggung jawabnya dalam Tim Manajemen Risiko KP hanya apabila ada isu dengan pekerjaannya atau ketika diminta oleh KTT/PJO.",
+   "Sebagian besar Perwakilan Departemen/Bagian/Seksi yang dipilih melaksanakan tanggung jawabnya dalam Tim Manajemen Risiko KP hanya apabila ada isu dengan pekerjaannya atau ketika diminta oleh KTT.",
    "Sebagian besar Perwakilan Departemen/Bagian/Seksi yang dipilih berpartisipasi dalam Tim Manajemen Risiko KP sesuai dengan tanggung jawab yang ditetapkan.",
    "Sebagian besar Perwakilan Departemen/Bagian/Seksi yang dipilih berperan aktif memberikan input konstruktif, umpan balik, informasi dan/atau dukungan yang dibutuhkan dalam kegiatan Tim Manajemen Risiko KP.",
    "Seluruh Perwakilan Departemen/Bagian/Seksi yang dipilih mampu untuk saling menyelaraskan pemahaman, melakukan pertukaran informasi yang tepat, dan mampu berkolaborasi dalam tim untuk mencapai tujuan Manajemen Risiko KP lingkup organisasi."
@@ -106,17 +106,17 @@ const KS_ITEMS = [
  {
   "code": "2.2.15",
   "name": "Persepsi Pekerja terhadap Kepemimpinan dan Komitmen dari Kepala Teknik Tambang/Penanggung Jawab Operasional",
-  "q": "Bagaimana persepsi Anda terhadap kepemimpinan dan komitmen dari KTT/PJO?",
+  "q": "Bagaimana persepsi Anda terhadap kepemimpinan dan komitmen dari KTT?",
   "levels": [
    "TOP MANAGEMENT",
    "MIDDLE MANAGEMENT"
   ],
   "opts": [
-   "Sebagian besar pekerja memiliki persepsi bahwa komitmen KTT/PJO dalam pengelolaan KP sangat kurang.",
-   "Sebagian besar pekerja memiliki persepsi bahwa komitmen KTT/PJO dalam pengelolaan KP terbatas untuk sekedar penyelesaian permasalahan Kasus KP yang telah terjadi.",
-   "Sebagian besar pekerja memiliki persepsi bahwa komitmen KTT/PJO dalam pengelolaan KP untuk pemenuhan minimum kewajiban hukum dan pencapaian target kinerja lagging indicator.",
-   "Sebagian besar pekerja memiliki persepsi bahwa KTT/PJO memiliki komitmen pengelolaan KP untuk menunjang sistem produksi dan mencapai target leading dan lagging indicator.",
-   "Sebagian besar pekerja memiliki persepsi bahwa KTT/PJO memiliki komitmen yang tinggi dalam KP agar dapat menunjang kinerja operasional yang konsisten handal di berbagai kondisi. KTT/PJO telah menjadi role model bagi pekerja dalam hal pengelolaan KP."
+   "Sebagian besar pekerja memiliki persepsi bahwa komitmen KTT dalam pengelolaan KP sangat kurang.",
+   "Sebagian besar pekerja memiliki persepsi bahwa komitmen KTT dalam pengelolaan KP terbatas untuk sekedar penyelesaian permasalahan Kasus KP yang telah terjadi.",
+   "Sebagian besar pekerja memiliki persepsi bahwa komitmen KTT dalam pengelolaan KP untuk pemenuhan minimum kewajiban hukum dan pencapaian target kinerja lagging indicator.",
+   "Sebagian besar pekerja memiliki persepsi bahwa KTT memiliki komitmen pengelolaan KP untuk menunjang sistem produksi dan mencapai target leading dan lagging indicator.",
+   "Sebagian besar pekerja memiliki persepsi bahwa KTT memiliki komitmen yang tinggi dalam KP agar dapat menunjang kinerja operasional yang konsisten handal di berbagai kondisi. KTT telah menjadi role model bagi pekerja dalam hal pengelolaan KP."
   ]
  },
  {
@@ -153,47 +153,47 @@ const KS_ITEMS = [
  },
  {
   "code": "2.2.19",
-  "name": "Peran KTT/PJO dalam Kegiatan Keselamatan Pertambangan (Rapat, Pertemuan, Seminar, dan Kegiatan Lainnya)",
-  "q": "Menurut Anda, bagaimana peran KTT/PJO dalam kegiatan keselamatan pertambangan (rapat, pertemuan, seminar, dan kegiatan lainnya)?",
+  "name": "Peran KTT dalam Kegiatan Keselamatan Pertambangan (Rapat, Pertemuan, Seminar, dan Kegiatan Lainnya)",
+  "q": "Menurut Anda, bagaimana peran KTT dalam kegiatan keselamatan pertambangan (rapat, pertemuan, seminar, dan kegiatan lainnya)?",
   "levels": [
    "MIDDLE MANAGEMENT"
   ],
   "opts": [
-   "KTT/PJO tidak terlibat/berperan dalam Kegiatan KP.",
-   "KTT/PJO memberikan informasi satu arah, tidak memberikan ruang partisipasi dan kesempatan kepada anggota untuk merespon kepada pekerja.",
-   "KTT/PJO memberikan kesempatan untuk diskusi dan konsultasi serta mendelegasikan kepada Pimpinan Unit Kerja untuk memimpin kegiatan KP.",
-   "KTT/PJO memimpin langsung, membuka ruang kerjasama yang besar dan proses diskusi dua arah, menjadikan pekerja sebagai partner untuk kolaborasi.",
-   "KTT/PJO mampu memberdayakan pekerja untuk berpartisipasi aktif, memberi solusi, melakukan pertukaran informasi yang tepat, serta mampu memimpin pengambilan keputusan, penetapan kesimpulan/mufakat didasarkan hasil konsensus bersama yang melalui proses rasional dan partisipasi tulus dari para pekerja."
+   "KTT tidak terlibat/berperan dalam Kegiatan KP.",
+   "KTT memberikan informasi satu arah, tidak memberikan ruang partisipasi dan kesempatan kepada anggota untuk merespon kepada pekerja.",
+   "KTT memberikan kesempatan untuk diskusi dan konsultasi serta mendelegasikan kepada Pimpinan Unit Kerja untuk memimpin kegiatan KP.",
+   "KTT memimpin langsung, membuka ruang kerjasama yang besar dan proses diskusi dua arah, menjadikan pekerja sebagai partner untuk kolaborasi.",
+   "KTT mampu memberdayakan pekerja untuk berpartisipasi aktif, memberi solusi, melakukan pertukaran informasi yang tepat, serta mampu memimpin pengambilan keputusan, penetapan kesimpulan/mufakat didasarkan hasil konsensus bersama yang melalui proses rasional dan partisipasi tulus dari para pekerja."
   ]
  },
  {
   "code": "2.2.20",
-  "name": "Peran KTT/PJO dalam Penyusunan dan Tinjauan Kebijakan Keselamatan Pertambangan",
-  "q": "Bagaimana peran KTT/PJO dalam penyusunan dan tinjauan kebijakan keselamatan pertambangan?",
+  "name": "Peran KTT dalam Penyusunan dan Tinjauan Kebijakan Keselamatan Pertambangan",
+  "q": "Bagaimana peran KTT dalam penyusunan dan tinjauan kebijakan keselamatan pertambangan?",
   "levels": [
    "MIDDLE MANAGEMENT"
   ],
   "opts": [
-   "KTT/PJO tidak terlibat/berperan dalam Penyusunan / Tinjauan Kebijakan KP.",
-   "KTT/PJO hanya sekedar hadir dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP namun tidak berperan signifikan, mendelegasikan kepada pimpinan Bagian K3&KO untuk memimpin diskusi dan membuat keputusan dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP.",
-   "KTT/PJO berpartisipasi dalam Penyusunan / Tinjauan Kebijakan KP sesuai dengan tanggung jawab yang ditetapkan secara terencana, terlibat dalam pembahasan seluruh substansi namun menetapkan keputusan secara terpimpin.",
-   "KTT/PJO memimpin langsung pelaksanaan Kegiatan Penyusunan / Tinjauan Kebijakan KP dan terlibat dalam pembahasan seluruh substansi dan memberikan masukan konstruktif dan valid, umpan balik, informasi dan/atau dukungan yang dibutuhkan, untuk setiap substansi pembahasan.",
-   "KTT/PJO mampu memberdayakan seluruh peserta untuk berkolaborasi dalam memberikan masukan seluruh substansi pembahasan, dan mampu memimpin pengambilan keputusan dan penetapan kesimpulan melalui proses yang inklusif dan tepat, didasarkan hasil konsensus bersama untuk mencapai tujuan Penyusunan / Tinjauan Kebijakan KP."
+   "KTT tidak terlibat/berperan dalam Penyusunan / Tinjauan Kebijakan KP.",
+   "KTT hanya sekedar hadir dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP namun tidak berperan signifikan, mendelegasikan kepada pimpinan Bagian K3&KO untuk memimpin diskusi dan membuat keputusan dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP.",
+   "KTT berpartisipasi dalam Penyusunan / Tinjauan Kebijakan KP sesuai dengan tanggung jawab yang ditetapkan secara terencana, terlibat dalam pembahasan seluruh substansi namun menetapkan keputusan secara terpimpin.",
+   "KTT memimpin langsung pelaksanaan Kegiatan Penyusunan / Tinjauan Kebijakan KP dan terlibat dalam pembahasan seluruh substansi dan memberikan masukan konstruktif dan valid, umpan balik, informasi dan/atau dukungan yang dibutuhkan, untuk setiap substansi pembahasan.",
+   "KTT mampu memberdayakan seluruh peserta untuk berkolaborasi dalam memberikan masukan seluruh substansi pembahasan, dan mampu memimpin pengambilan keputusan dan penetapan kesimpulan melalui proses yang inklusif dan tepat, didasarkan hasil konsensus bersama untuk mencapai tujuan Penyusunan / Tinjauan Kebijakan KP."
   ]
  },
  {
   "code": "2.2.21",
-  "name": "Peran KTT/PJO dalam Manajemen Risiko Keselamatan Pertambangan",
-  "q": "Menurut Anda, bagaimana peran KTT/PJO dalam setiap tahapan manajemen risiko (perencanaan, komunikasi dan konsultasi, pelaksanaan, pemantauan dan peninjauan manajemen risiko keselamatan pertambangan, serta menindaklanjuti hasil evaluasi untuk peningkatan berkelanjutan)?",
+  "name": "Peran KTT dalam Manajemen Risiko Keselamatan Pertambangan",
+  "q": "Menurut Anda, bagaimana peran KTT dalam setiap tahapan manajemen risiko (perencanaan, komunikasi dan konsultasi, pelaksanaan, pemantauan dan peninjauan manajemen risiko keselamatan pertambangan, serta menindaklanjuti hasil evaluasi untuk peningkatan berkelanjutan)?",
   "levels": [
    "MIDDLE MANAGEMENT"
   ],
   "opts": [
-   "KTT/PJO tidak terlibat/berperan dalam Manajemen Risiko KP.",
-   "KTT/PJO tidak berperan signifikan dalam Manajemen Risiko KP.",
-   "KTT/PJO ikut berperan dalam tahap perencanaan Manajemen Risiko KP.",
-   "KTT/PJO ikut berperan dalam tahap perencanaan, komunikasi dan konsultasi, pelaksanaan, dan secara proaktif melakukan pemantauan dan peninjauan Manajemen Risiko KP.",
-   "KTT/PJO ikut berperan dalam tahap perencanaan, komunikasi dan konsultasi, pelaksanaan, dan pemantauan dan peninjauan Manajemen Risiko KP, serta menindaklanjuti hasil evaluasi untuk peningkatan berkelanjutan."
+   "KTT tidak terlibat/berperan dalam Manajemen Risiko KP.",
+   "KTT tidak berperan signifikan dalam Manajemen Risiko KP.",
+   "KTT ikut berperan dalam tahap perencanaan Manajemen Risiko KP.",
+   "KTT ikut berperan dalam tahap perencanaan, komunikasi dan konsultasi, pelaksanaan, dan secara proaktif melakukan pemantauan dan peninjauan Manajemen Risiko KP.",
+   "KTT ikut berperan dalam tahap perencanaan, komunikasi dan konsultasi, pelaksanaan, dan pemantauan dan peninjauan Manajemen Risiko KP, serta menindaklanjuti hasil evaluasi untuk peningkatan berkelanjutan."
   ]
  },
  {
@@ -207,7 +207,7 @@ const KS_ITEMS = [
   ],
   "opts": [
    "Pimpinan Departemen/Bagian tidak terlibat/berperan dalam Penyusunan / Tinjauan Kebijakan KP.",
-   "Sebagian besar Pimpinan Departemen/Bagian hanya sekedar hadir dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP namun tidak berperan dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP, hanya berperan ketika diminta oleh KTT/PJO.",
+   "Sebagian besar Pimpinan Departemen/Bagian hanya sekedar hadir dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP namun tidak berperan dalam Kegiatan Penyusunan / Tinjauan Kebijakan KP, hanya berperan ketika diminta oleh KTT.",
    "Sebagian besar Pimpinan Departemen/Bagian berpartisipasi dalam Penyusunan / Tinjauan Kebijakan KP sesuai dengan tanggung jawab yang ditetapkan secara terencana.",
    "Sebagian besar Pimpinan Departemen/Bagian berperan aktif memberikan input konstruktif dalam Penyusunan / Tinjauan Kebijakan KP.",
    "Seluruh Pimpinan Departemen/Bagian mampu memberikan informasi dan dukungan yang tepat, mentransfer pemahaman dan/atau mampu berkolaborasi untuk mencapai tujuan Penyusunan / Tinjauan Kebijakan KP."
@@ -224,7 +224,7 @@ const KS_ITEMS = [
   ],
   "opts": [
    "Pimpinan Departemen/Bagian hanya menghadiri Kegiatan KP yang menjadi kewajibannya.",
-   "Sebagian besar Pimpinan Departemen/Bagian terlibat dan hanya berkontribusi dalam Kegiatan KP apabila ada isu dengan pekerjaannya atau ketika diminta oleh KTT/PJO.",
+   "Sebagian besar Pimpinan Departemen/Bagian terlibat dan hanya berkontribusi dalam Kegiatan KP apabila ada isu dengan pekerjaannya atau ketika diminta oleh KTT.",
    "Sebagian besar Pimpinan Departemen/Bagian berpartisipasi dalam Kegiatan KP sesuai dengan tanggung jawab yang ditetapkan secara terencana.",
    "Sebagian besar Pimpinan Departemen/Bagian berperan aktif memberikan input konstruktif dalam Kegiatan KP.",
    "Seluruh Pimpinan Departemen/Bagian mampu mentransfer pemahaman dan/atau mampu berkolaborasi untuk mencapai tujuan Kegiatan KP lingkup organisasi."
@@ -241,7 +241,7 @@ const KS_ITEMS = [
   ],
   "opts": [
    "Pimpinan Departemen/Bagian/Seksi tidak berperan/ berkontribusi dalam Manajemen Risiko KP.",
-   "Sebagian besar Pimpinan Departemen/Bagian/Seksi melaksanakan tanggung jawabnya dalam Tim Manajemen Risiko KP, apabila ada isu dengan pekerjaannya atau ketika diminta oleh KTT/PJO.",
+   "Sebagian besar Pimpinan Departemen/Bagian/Seksi melaksanakan tanggung jawabnya dalam Tim Manajemen Risiko KP, apabila ada isu dengan pekerjaannya atau ketika diminta oleh KTT.",
    "Sebagian besar Pimpinan Departemen/Bagian/Seksi berpartisipasi dalam Tim Manajemen Risiko KP sesuai dengan tanggung jawab yang ditetapkan.",
    "Sebagian besar Pimpinan Departemen/Bagian/Seksi berperan aktif memberikan input konstruktif, umpan balik, informasi dan/atau dukungan yang dibutuhkan dalam kegiatan Tim Manajemen Risiko KP.",
    "Seluruh Pimpinan Departemen/Bagian/Seksi mampu memberikan informasi dan dukungan yang tepat, saling mentransfer dan menyelaraskan pemahaman dan mampu berkolaborasi dalam tim untuk mencapai tujuan Manajemen Risiko KP lingkup organisasi."
@@ -309,7 +309,7 @@ const KS_ITEMS = [
   ],
   "opts": [
    "Pemilihan perwakilan Pekerja pada Komite KP tanpa ada pertimbangan apapun oleh manajemen puncak, secara otoriter.",
-   "Pemilihan perwakilan Pekerja pada Komite KP dilakukan melalui proses diskusi sepihak antara manajemen puncak dan KTT/PJO.",
+   "Pemilihan perwakilan Pekerja pada Komite KP dilakukan melalui proses diskusi sepihak antara manajemen puncak dan KTT.",
    "Pemilihan perwakilan Pekerja pada Komite KP sesuai dengan tingkat jabatan.",
    "Pemilihan perwakilan Pekerja pada Komite KP dilakukan dengan melibatkan pemangku kepentingan internal, namun belum ada pertimbangan kompetensi dan komposisi.",
    "Pemilihan perwakilan Pekerja pada Komite KP dilakukan melalui mekanisme yang aspiratif dan demokratis, dengan mempertimbangkan kompetensi dan komposisi."
