@@ -2,29 +2,30 @@
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kuesioner Persepsi Keselamatan Pertambangan</title>
 <style>
-:root{--bg:#f5f7fa;--card:#fff;--tx:#1b2430;--mu:#5f6b7a;--ac:#1f3864;--bd:#d6dde6;--ok:#2e7d32;--er:#c62828}
-@media(prefers-color-scheme:dark){:root{--bg:#10151c;--card:#19212b;--tx:#e8edf3;--mu:#9aa7b6;--ac:#7fa6e6;--bd:#2c3846}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,sans-serif}
-.w{max-width:760px;margin:0 auto;padding:16px}
-h1{font-size:1.3rem;margin:.2rem 0}.mu{color:var(--mu);font-size:.9rem}
-.c{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px;margin:12px 0}
-label.f{display:block;font-weight:600;margin:10px 0 4px}
-select,input{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
-.q{font-weight:600;margin-bottom:8px}.n{color:var(--mu);font-weight:400}
-.o{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;margin:6px 0;cursor:pointer}
-.o:has(input:checked){border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
-.o input{width:auto;margin-top:5px}
-button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit;font-weight:600;cursor:pointer;width:100%}
-@media(prefers-color-scheme:dark){button{color:#10151c}}
-button:disabled{opacity:.5}.msg{padding:10px;border-radius:8px;margin:10px 0}.er{background:#fdecea;color:var(--er)}.ok{background:#e8f5e9;color:var(--ok)}
-.lv{display:block;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;margin:6px 0;cursor:pointer}
-.lv:has(input:checked){border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
-.lv input{width:auto;margin-right:8px}.lv b{display:inline}.lv small{display:block;color:var(--mu);margin-left:24px}
+:root{--bg:#f3f6fb;--card:#fff;--tx:#0f172a;--mu:#64748b;--ac:#1d4ed8;--acs:#e8efff;--bd:#e2e8f0;--ok:#15803d;--er:#b91c1c;--sh:0 1px 2px rgba(15,23,42,.05),0 6px 18px rgba(15,23,42,.06);--fo:0 0 0 3px rgba(29,78,216,.22)}
+@media(prefers-color-scheme:dark){:root{--bg:#0a1120;--card:#111b30;--tx:#e6ecf7;--mu:#8fa0bd;--ac:#6ea8fe;--acs:#172544;--bd:#22304d;--ok:#4ade80;--er:#f87171;--sh:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);--fo:0 0 0 3px rgba(110,168,254,.3)}}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 380px at 85% -8%,color-mix(in srgb,var(--ac) 18%,transparent),transparent),var(--bg);color:var(--tx);font:16px/1.55 Inter,"Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.w{max-width:780px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.45rem;margin:.6rem 0 .2rem;letter-spacing:-.01em}.mu{color:var(--mu);font-size:.92rem}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px;margin:14px 0;box-shadow:var(--sh)}
+label.f{display:block;font-weight:650;margin:12px 0 5px;font-size:.93rem}
+select,input{width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font:inherit;transition:border-color .15s,box-shadow .15s}
+select:focus,input:focus,button:focus-visible{outline:none;border-color:var(--ac);box-shadow:var(--fo)}
+.q{font-weight:650;margin-bottom:10px}.n{color:var(--mu);font-weight:400}
+.o{display:flex;gap:11px;align-items:flex-start;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;margin:7px 0;cursor:pointer;transition:border-color .15s,background .15s}.o:hover{border-color:var(--ac)}
+.o:has(input:checked){border-color:var(--ac);background:var(--acs)}
+.o input{width:auto;margin-top:5px;accent-color:var(--ac)}
+button{background:var(--ac);color:#fff;border:0;border-radius:11px;padding:13px 18px;font:inherit;font-weight:650;cursor:pointer;width:100%;transition:filter .15s,transform .05s}button:hover{filter:brightness(1.08)}button:active{transform:translateY(1px)}
+@media(prefers-color-scheme:dark){button{color:#07101f}}
+button:disabled{opacity:.5;cursor:not-allowed}.msg{padding:11px 13px;border-radius:10px;margin:10px 0}.er{background:color-mix(in srgb,var(--er) 12%,transparent);color:var(--er)}.ok{background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok)}
+.lv{display:block;padding:11px 13px;border:1px solid var(--bd);border-radius:10px;margin:7px 0;cursor:pointer;transition:border-color .15s,background .15s}.lv:hover{border-color:var(--ac)}
+.lv:has(input:checked){border-color:var(--ac);background:var(--acs)}
+.lv input{width:auto;margin-right:8px;accent-color:var(--ac)}.lv b{display:inline}.lv small{display:block;color:var(--mu);margin-left:24px}
 #ar{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
-.ck{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;cursor:pointer;line-height:1.2}
-.ck:has(input:checked){border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
+.ck{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;cursor:pointer;line-height:1.2;transition:border-color .15s,background .15s}.ck:hover{border-color:var(--ac)}
+.ck:has(input:checked){border-color:var(--ac);background:var(--acs)}
 .ck input{width:18px;height:18px;margin:0;flex:none;accent-color:var(--ac)}
-.bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;position:sticky;top:0}.bar i{display:block;height:100%;background:var(--ac);width:0}
+.bar{height:7px;background:var(--bd);border-radius:4px;overflow:hidden;position:sticky;top:0;z-index:5}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ac),#38bdf8);width:0;transition:width .25s}
 </style></head><body><div class="w">
 <img id="bn" src="banner.png" alt="" style="width:100%;border-radius:10px;display:none" onload="this.style.display='block'" onerror="this.remove()">
 <h1 id="jd">Kuesioner Penilaian Tingkat Pencapaian Kinerja Keselamatan Pertambangan</h1>
