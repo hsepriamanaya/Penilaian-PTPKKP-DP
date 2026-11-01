@@ -143,7 +143,7 @@ function vNilai(){
   $('#mt').onchange=e=>{METHOD=e.target.value;vNilai()};$('#ifl').onchange=e=>{INDF=e.target.value;vNilai()};
   document.querySelectorAll('select[data-k]').forEach(s=>s.onchange=()=>{DIRTY[s.dataset.k]=s.value===''?'':+s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
   document.querySelectorAll('input[data-c]').forEach(s=>s.onchange=()=>{DIRTY['c:'+s.dataset.c]=s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
-  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const r=$('#r-'+b.dataset.r);r.hidden=!r.hidden});
+  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const r=document.getElementById('r-'+b.dataset.r);r.hidden=!r.hidden});
   $('#sv').onclick=saveScores}
 async function saveScores(){
   const rows=Object.entries(DIRTY).map(([k,v])=>{if(k.startsWith('c:')){const[i,m]=k.slice(2).split('|');return{item:i,metode:m,entitas:'_CAT',skor:'',catatan:v}}const[i,m,e]=k.split('|');return{item:i,metode:m,entitas:e,skor:v,catatan:''}});
@@ -157,12 +157,12 @@ function vKs(){
   const pop={};D.Populasi.forEach(p=>pop[p.entitas+'|'+p.level]=+p.populasi||0);
   const lv=['Top Management','Top Management Site','Middle Management','Pengawas','Non Staff'];
   const cnt={};D.KS_Rekap.forEach(g=>cnt[g.entitas+'|'+g.level]=g.n);
-  let tg=0,tn=0;
-  const body=ents.map(e=>lv.map(l=>{const N=pop[e.kode+'|'+l]||0,t=N?sl(N,moe):0,n=cnt[e.kode+'|'+l]||0;tg+=t;tn+=Math.min(n,t||n);
-    return`<tr><td>${esc(e.kode)}</td><td>${l}</td><td class="n">${ROLE==='admin'?`<input type="number" min="0" style="width:80px" data-p="${e.kode}|${l}" value="${N}">`:N}</td><td class="n">${t}</td><td class="n">${n}</td><td class="n ${t&&n>=t?'ok':'er'}">${t?Math.round(n/t*100)+'%':'-'}</td></tr>`}).join('')).join('');
-  $('#v').innerHTML=`<div class="c"><h2>Rekap kuesioner (anonim)</h2><div class="mu">Sampel = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
+  let tg=0,tn=0,tw=0;
+  const body=ents.map(e=>lv.map(l=>{const N=pop[e.kode+'|'+l]||0,t=N?sl(N,moe):0,n=cnt[e.kode+'|'+l]||0;tg+=t;tn+=Math.min(n,t||n);tw+=t?Math.ceil(t/10):0;
+    return`<tr><td>${esc(e.kode)}</td><td>${l}</td><td class="n">${ROLE==='admin'?`<input type="number" min="0" style="width:80px" data-p="${e.kode}|${l}" value="${N}">`:N}</td><td class="n">${t}</td><td class="n">${n}</td><td class="n ${t&&n>=t?'ok':'er'}">${t?Math.round(n/t*100)+'%':'-'}</td><td class="n">${t?Math.ceil(t/10):'-'}</td></tr>`}).join('')).join('');
+  $('#v').innerHTML=`<div class="c"><h2>Rekap kuesioner (anonim)</h2><div class="mu">Sampel = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Saran narasumber WWC/FGD = 10% dari target sampel tiap kelompok (dibulatkan ke atas), mengikuti acuan lembar SAMPLING; angka ini dan sampel KS otomatis masuk ke tabel “Metode dan Sampel” di laporan Word. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
    ${ROLE==='admin'?'<div class="row"><button id="sp">Simpan populasi</button><span id="pm" class="mu"></span></div>':''}
-   <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Target sampel</th><th class="n">Terkumpul</th><th class="n">%</th></tr>${body}</table></div></div>${ROLE==='admin'?'<div class="c" id="pg"></div>':''}`;
+   <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Target sampel</th><th class="n">Terkumpul</th><th class="n">%</th><th class="n">Saran narasumber WWC/FGD</th></tr>${body}<tr><th colspan="3">Total</th><th class="n">${tg}</th><th class="n">${tn}</th><th class="n">${tg?Math.round(tn/tg*100)+'%':'-'}</th><th class="n">${tw}</th></tr></table></div></div>${ROLE==='admin'?'<div class="c" id="pg"></div>':''}`;
   if(ROLE==='admin')pengisianUI();
   if(ROLE==='admin')$('#sp').onclick=async()=>{const rows=[];document.querySelectorAll('[data-p]').forEach(i=>{const[e,l]=i.dataset.p.split('|');if(+i.value)rows.push({entitas:e,level:l,populasi:+i.value})});
     const r=await call({action:'savePopulasi',rows});$('#pm').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Populasi=rows}}
