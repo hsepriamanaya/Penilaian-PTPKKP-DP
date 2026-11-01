@@ -26,6 +26,10 @@ table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--bd);paddi
 <h1>SML / PTPKKP — Aplikasi Penilaian <span class="mu" id="who"></span></h1>
 <div id="app"></div></div>
 <script src="master_web.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="dokumen_default.js"></script>
+<script src="laporan_docx.js"></script>
+<script src="dokumen_ui.js"></script>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyAmqSz709-jRC-3jKTqXJR_b26VXftwjGje9lvH5KlcgT9xWuQI1cMBO3G5GltRcqJVw/exec';
 const METHODS = ['TD','KS','WWC','FGD','ANL','OBS','PJ'], MNAME={TD:'Tinjauan Dokumentasi',KS:'Kuesioner',WWC:'Wawancara',FGD:'FGD',ANL:'Analisis',OBS:'Observasi',PJ:'Pengujian'};
@@ -40,11 +44,14 @@ const DEF={agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'
 async function call(body){try{const r=body?await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,key:KEY})}):await fetch(`${API_URL}?action=all&key=${encodeURIComponent(KEY)}`);return await r.json()}catch(e){return{ok:false,error:'Tidak dapat terhubung ke server'}}}
 function prep(X){X.cfg={...DEF};X.Config.forEach(c=>X.cfg[c.kunci]=String(c.nilai));
   X.skor={};X.cat={};X.Skor.forEach(r=>{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.entitas==='_CAT')X.cat[`${r.item}|${r.metode}`]=r.catatan;else if(r.skor!=='')X.skor[k]=Number(r.skor)});
-  X.ovr={};X.Override.forEach(r=>X.ovr[String(r.item)]={skor:Number(r.skor),alasan:r.alasan});return X}
+  X.ovrAll=X.Override.map(r=>({item:String(r.item),skor:Number(r.skor),alasan:r.alasan,iup:String(r.iup||'')}));
+  X.lap={};(X.Laporan||[]).forEach(r=>{try{(X.lap[r.iup]=X.lap[r.iup]||{})[r.kunci]=JSON.parse(r.nilai)}catch(e){}});return X}
+/* override: berlaku untuk semua cakupan (iup kosong) atau untuk satu IUP; cakupan IUP memakai override IUP-nya lebih dulu */
+const ovrFor=code=>{const sc=SCOPE.startsWith('iup:')?SCOPE.slice(4):'';const a=D.ovrAll.filter(o=>o.item===code);return a.find(o=>sc&&o.iup===sc)||a.find(o=>!o.iup)||null};
 async function load(){const r=await call();if(!r.ok)return r;ROLE=r.role;D=prep(r.data);return r}
 const withData=(X,fn)=>{const o=D;D=X;try{return fn()}finally{D=o}};
 const dl=(n,t,m)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()};
-const backupJson=()=>JSON.stringify({Entitas:D.Entitas,Populasi:D.Populasi,Skor:D.Skor,Override:D.Override,Config:D.Config,KS_Rekap:D.KS_Rekap,Temuan:D.Temuan,Program:D.Program},null,1);
+const backupJson=()=>JSON.stringify({Entitas:D.Entitas,Populasi:D.Populasi,Skor:D.Skor,Override:D.ovrAll.map(o=>({item:o.item,skor:o.skor,alasan:o.alasan,iup:o.iup})),Config:D.Config,KS_Rekap:D.KS_Rekap,Temuan:D.Temuan,Program:D.Program,Laporan:D.Laporan||[]},null,1);
 
 /* ===== Perhitungan sesuai Kepdirjen: satu skor per item; parameter = Σ skor item /(5×n item) × bobot ===== */
 const indukList=e=>String(e.induk||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -71,7 +78,7 @@ function consolidate(it,m,ents,ks){
 function itemFinal(it,ents,ks,useOvr){
   const ms={};it.methods.forEach(m=>ms[m]=consolidate(it,m,ents,ks));
   const vals=Object.values(ms).filter(x=>x!=null);let f=null,ov=false;
-  if(useOvr&&D.ovr[it.code]){f=D.ovr[it.code].skor;ov=true}
+  const o=useOvr?ovrFor(it.code):null;if(o){f=o.skor;ov=true}
   else if(vals.length)f=D.cfg.itemrule==='MIN'?Math.min(...vals):Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
   return{ms,f,ov,comp:ov?1:vals.length/it.methods.length}}
 function calc(ents,ks,useOvr=true){
@@ -89,7 +96,7 @@ function calc(ents,ks,useOvr=true){
 
 /* ===== Tampilan ===== */
 function shell(){
-  const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['banding','Perbandingan'],['arsip','Periode & Arsip'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner'],['banding','Perbandingan']];
+  const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['banding','Perbandingan'],['lap','Data Laporan'],['dok','Dokumen Laporan'],['arsip','Periode & Arsip'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner'],['banding','Perbandingan']];
   const iups=allEnt().filter(e=>e.peran==='IUP');
   if(SCOPE.startsWith('iup:')&&!iups.some(e=>'iup:'+e.kode===SCOPE))SCOPE='*';
   $('#who').textContent=`— ${D.cfg.perusahaan||''} ${D.cfg.periode||''} (${ROLE==='admin'?'Auditor/Admin':'Pembaca'})`;
@@ -99,7 +106,7 @@ function shell(){
   document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;shell()});
   $('#lo').onclick=()=>logout();
   $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
-  ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor,arsip:vArsip,banding:vBanding})[TAB]()}
+  ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor,arsip:vArsip,banding:vBanding,lap:vLaporan,dok:vDokumen})[TAB]()}
 
 function vHasil(){
   const ents=activeEnt(),ks=ksScores(),R=calc(ents,ks);window.R=R;
@@ -188,18 +195,18 @@ function vEnt(){
    ${inp('minresp','Minimal responden per kelompok')}${inp('moe','Margin of error Slovin (0.05 = 5%)')}${inp('perusahaan','Nama perusahaan')}${inp('periode','Periode penilaian')}</div>
    <div class="row"><button id="sc2">Simpan pengaturan</button><span id="cm" class="mu"></span></div></div>
    <div class="c"><h2>Skor akhir item — override auditor</h2><div class="mu">Hanya jika skor akhir perlu berbeda dari aturan di atas. Alasan wajib diisi.</div><div class="row"><select id="oi">${MASTER.items.map(i=>`<option value="${i.code}">${i.code} ${esc(i.name.slice(0,70))}</option>`).join('')}</select>
-   <select id="os"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><input id="oa" placeholder="Alasan" size="40"><button id="oadd">Tambah/ubah</button></div>
-   <table id="ot"><tr><th>Item</th><th>Skor</th><th>Alasan</th><th></th></tr>${Object.entries(D.ovr).map(([k,v])=>ovRow(k,v)).join('')}</table><div class="row"><button id="so">Simpan override</button><span id="om" class="mu"></span></div></div>`;
+   <select id="os"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><select id="ou"><option value="">Semua cakupan</option>${allEnt().filter(e=>e.peran==='IUP').map(e=>`<option value="${esc(e.kode)}">Hanya ${esc(e.kode)}</option>`).join('')}</select><input id="oa" placeholder="Alasan" size="40"><button id="oadd">Tambah/ubah</button></div>
+   <table id="ot"><tr><th>Item</th><th>Berlaku untuk</th><th>Skor</th><th>Alasan</th><th></th></tr>${D.ovrAll.map((v,i)=>ovRow(v,i)).join('')}</table><div class="row"><button id="so">Simpan override</button><span id="om" class="mu"></span></div></div>`;
   const rd=()=>[...document.querySelectorAll('#et tr[data-i]')].map(tr=>({kode:tr.querySelector('[data-f=kode]').value.trim(),nama:tr.querySelector('[data-f=nama]').value,peran:tr.querySelector('[data-f=peran]').value,lingkup:tr.querySelector('[data-f=lingkup]').value,pekerja:+tr.querySelector('[data-f=pekerja]').value||0,aktif:tr.querySelector('[data-f=aktif]').value,induk:tr.querySelector('[data-f=induk]').value.trim()})).filter(r=>r.kode);
   $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya',induk:''});vEnt()};
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{D.Entitas=rd();D.Entitas.splice(+b.dataset.x,1);vEnt()});
   $('#se').onclick=async()=>{const rows=rd();if(new Set(rows.map(r=>r.kode)).size!==rows.length)return $('#em').textContent='Kode entitas harus unik';const r=await call({action:'saveEntitas',rows});$('#em').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Entitas=rows};
   $('#sc2').onclick=async()=>{const rows=[];document.querySelectorAll('[data-cf]').forEach(i=>{D.cfg[i.dataset.cf]=i.value;rows.push({kunci:i.dataset.cf,nilai:i.value})});const r=await call({action:'saveConfig',rows});$('#cm').textContent=r.ok?'Tersimpan.':r.error};
-  $('#oadd').onclick=()=>{if(!$('#oa').value.trim())return $('#om').textContent='Alasan wajib diisi';D.ovr[$('#oi').value]={skor:+$('#os').value,alasan:$('#oa').value};vEnt()};
-  document.querySelectorAll('[data-ox]').forEach(b=>b.onclick=()=>{delete D.ovr[b.dataset.ox];vEnt()});
-  $('#so').onclick=async()=>{const rows=Object.entries(D.ovr).map(([item,v])=>({item,skor:v.skor,alasan:v.alasan}));const r=await call({action:'saveOverride',rows});$('#om').textContent=r.ok?'Tersimpan.':r.error}}
+  $('#oadd').onclick=()=>{if(!$('#oa').value.trim())return $('#om').textContent='Alasan wajib diisi';{const it=$('#oi').value,u=$('#ou').value;D.ovrAll=D.ovrAll.filter(o=>!(o.item===it&&o.iup===u));D.ovrAll.push({item:it,skor:+$('#os').value,alasan:$('#oa').value,iup:u});vEnt()}};
+  document.querySelectorAll('[data-ox]').forEach(b=>b.onclick=()=>{D.ovrAll.splice(+b.dataset.ox,1);vEnt()});
+  $('#so').onclick=async()=>{const rows=D.ovrAll.map(v=>({item:v.item,skor:v.skor,alasan:v.alasan,iup:v.iup}));const r=await call({action:'saveOverride',rows});$('#om').textContent=r.ok?'Tersimpan.':r.error}}
 const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" size="7" value="${esc(e.kode)}"></td><td><input data-f="nama" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:90px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><input data-f="induk" size="9" placeholder="${e.peran==='IUP'?'(IUP)':'kode IUP, mis. DP,PE'}" value="${esc(e.induk||'')}" ${e.peran==='IUP'?'disabled':''}></td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
-const ovRow=(k,v)=>`<tr><td>${k}</td><td class="n">${v.skor}</td><td>${esc(v.alasan)}</td><td><button class="s" data-ox="${k}">Hapus</button></td></tr>`;
+const ovRow=(v,i)=>`<tr><td>${esc(v.item)}</td><td>${v.iup?esc(v.iup):'Semua'}</td><td class="n">${v.skor}</td><td>${esc(v.alasan)}</td><td><button class="s" data-ox="${i}">Hapus</button></td></tr>`;
 const sel=(k,l,o)=>`<div><div class="mu">${l}</div><select data-cf="${k}">${o.map(x=>`<option ${D.cfg[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
 const inp=(k,l)=>`<div><div class="mu">${l}</div><input data-cf="${k}" value="${esc(D.cfg[k])}"></div>`;
 
@@ -239,6 +246,47 @@ async function vBanding(){
   <div class="c"><h2>Per parameter</h2><div class="sc"><table><tr><th>Parameter</th><th class="n">${esc(BANDING)}</th><th class="n">${esc(D.cfg.periode||'Berjalan')}</th><th class="n">Selisih (nilai capaian)</th></tr>
   ${Object.keys(RC.params).map(p=>`<tr><td>${p} ${esc(RC.params[p].name)}</td><td class="n">${RA.params[p].cap.toFixed(4)}</td><td class="n">${RC.params[p].cap.toFixed(4)}</td><td class="n">${dlt(RC.params[p].cap,RA.params[p].cap)}</td></tr>`).join('')}</table></div></div>`}
 
+const ID_FIELDS=[['site','Site / lokasi tambang','t'],['alamat_pusat','Alamat kantor pusat','t'],['alamat_site','Alamat site','t'],['izin','Jenis perizinan','t'],['nomor_izin','Nomor izin IUP','t'],['komoditas','Jenis komoditas','t'],['direktur','Direktur','t'],['ktt','Kepala Teknik Tambang (KTT)','t'],['luas','Luas area konsesi (Ha)','t'],
+ ['periode_mulai','Periode data — mulai','d'],['periode_selesai','Periode data — selesai','d'],['nilai_mulai','Pelaksanaan penilaian — mulai','d'],['nilai_selesai','Pelaksanaan penilaian — selesai','d'],['lokasi_ttd','Lokasi penandatanganan laporan','t'],['tgl_laporan','Tanggal laporan','d'],
+ ['penyusun','Penyusun (Internal Auditor SMKP) — nama','t'],['penyusun_jab','Penyusun — jabatan','t'],['penyetuju','Penyetuju (PJO/KTT) — nama','t'],['penyetuju_jab','Penyetuju — jabatan','t']];
+const JAD_DEF={A:['Meeting persiapan SML internal','Penentuan kriteria dan jumlah sampel','Penentuan responden','Sosialisasi pelaksanaan SML'],B:['Kick-off meeting','Penyebaran kuesioner','Tinjauan dokumentasi','Observasi lapangan','Wawancara','Focus Group Discussion','Pengujian'],C:['Analisis data dan validasi nilai','Penyusunan program peningkatan','Penyusunan laporan','Rapat penutupan (closing meeting)']};
+const JAD_NAMA={A:'A. PERSIAPAN',B:'B. PENGUMPULAN DATA',C:'C. ANALISIS, PENILAIAN DAN PELAPORAN'};
+let LAPIUP='';
+function vLaporan(){
+  const iups=allEnt().filter(e=>e.peran==='IUP');
+  if(!iups.length){$('#v').innerHTML='<div class="c">Belum ada entitas berperan IUP.</div>';return}
+  if(!iups.some(e=>e.kode===LAPIUP))LAPIUP=iups[0].kode;
+  const L=(D.lap&&D.lap[LAPIUP])||{},id=L.identitas||{},tim=L.tim||[{peran:'Internal Auditor SMKP',nama:'',jab:''}],tem=L.temuan||{},prog=L.program||[];
+  const jad=L.jadwal||Object.fromEntries(Object.entries(JAD_DEF).map(([g,a])=>[g,a.map(k=>({keg:k,pic:'',d1:'',d2:''}))]));
+  const ent=allEnt().filter(e=>e.kode===LAPIUP||(e.peran!=='IUP'&&(!indukList(e).length||indukList(e).includes(LAPIUP))));
+  $('#v').innerHTML=`<div class="c"><div class="row"><b>Data laporan untuk</b><select id="li">${iups.map(e=>`<option value="${esc(e.kode)}" ${e.kode===LAPIUP?'selected':''}>${esc(e.nama)}</option>`).join('')}</select><button id="ls">Simpan data laporan</button><span id="lm" class="mu"></span></div>
+   <div class="mu">Data ini dipakai untuk menyusun laporan Word per IUP. Kosongkan temuan agar narasinya disusun otomatis dari hasil penilaian.</div></div>
+  <div class="c"><h2>Identitas dan penandatangan</h2><div class="grid">${ID_FIELDS.map(([k,l,t])=>`<div><div class="mu">${l}</div><input data-id="${k}" type="${t==='d'?'date':'text'}" value="${esc(id[k]||'')}" style="width:100%"></div>`).join('')}</div></div>
+  <div class="c"><h2>Tim penilai</h2><datalist id="pr"><option>Internal Auditor SMKP<option>Subject Matter Expert (SME)<option>Ketua Tim<option>Anggota</datalist>
+   <table id="tm"><tr><th>Peran</th><th>Nama / perwakilan</th><th>Jabatan</th><th></th></tr>${tim.map(m=>`<tr><td><input list="pr" data-t="peran" value="${esc(m.peran)}"></td><td><input data-t="nama" value="${esc(m.nama)}"></td><td><input data-t="jab" value="${esc(m.jab)}"></td><td><button class="s" data-tx>Hapus</button></td></tr>`).join('')}</table><button class="s" id="tmA">+ Tambah anggota</button></div>
+  <div class="c"><h2>Jadwal pelaksanaan</h2>${['A','B','C'].map(g=>`<b>${JAD_NAMA[g]}</b><table class="jt" data-g="${g}"><tr><th>Kegiatan</th><th>PIC</th><th>Mulai</th><th>Selesai</th><th></th></tr>${(jad[g]||[]).map(j=>`<tr><td><input data-j="keg" size="34" value="${esc(j.keg)}"></td><td><input data-j="pic" size="14" value="${esc(j.pic)}"></td><td><input type="date" data-j="d1" value="${esc(j.d1||'')}"></td><td><input type="date" data-j="d2" value="${esc(j.d2||'')}"></td><td><button class="s" data-jx>Hapus</button></td></tr>`).join('')}</table><button class="s" data-ja="${g}">+ Tambah kegiatan</button><br><br>`).join('')}</div>
+  <div class="c"><h2>Temuan per indikator <span class="mu">(kosong = disusun otomatis)</span></h2>${[1,2,3,4].map(i=>`<div class="mu">${i}. ${esc(MASTER.ind[i])}</div><textarea data-tm="${i}" rows="3" style="width:100%">${esc(tem[i]||'')}</textarea>`).join('')}</div>
+  <div class="c"><h2>Program peningkatan</h2><table id="pg2"><tr><th>Parameter</th><th>Program / kegiatan</th><th>Item terkait</th><th>Entitas sasaran</th><th>PIC</th><th>Target selesai</th><th>Target nilai</th><th>Status</th><th></th></tr>
+   ${prog.map(x=>progRow(x,ent)).join('')}</table><button class="s" id="pgA">+ Tambah program</button></div>`;
+  $('#li').onchange=e=>{LAPIUP=e.target.value;vLaporan()};
+  const rm=sel=>document.querySelectorAll(sel).forEach(b=>b.onclick=()=>b.closest('tr').remove());
+  rm('[data-tx]');rm('[data-jx]');rm('#pg2 [data-px]');
+  $('#tmA').onclick=()=>{$('#tm').insertAdjacentHTML('beforeend',`<tr><td><input list="pr" data-t="peran" value="Subject Matter Expert (SME)"></td><td><input data-t="nama"></td><td><input data-t="jab"></td><td><button class="s" data-tx>Hapus</button></td></tr>`);rm('[data-tx]')};
+  document.querySelectorAll('[data-ja]').forEach(b=>b.onclick=()=>{document.querySelector(`.jt[data-g=${b.dataset.ja}]`).insertAdjacentHTML('beforeend',`<tr><td><input data-j="keg" size="34"></td><td><input data-j="pic" size="14"></td><td><input type="date" data-j="d1"></td><td><input type="date" data-j="d2"></td><td><button class="s" data-jx>Hapus</button></td></tr>`);rm('[data-jx]')});
+  $('#pgA').onclick=()=>{$('#pg2').insertAdjacentHTML('beforeend',progRow({},ent));rm('#pg2 [data-px]')};
+  $('#ls').onclick=async()=>{
+    const q=(sel,f)=>[...document.querySelectorAll(sel)].map(f);
+    const identitas={};document.querySelectorAll('[data-id]').forEach(i=>identitas[i.dataset.id]=i.value.trim());
+    const tim2=q('#tm tr:has([data-t])',tr=>({peran:tr.querySelector('[data-t=peran]').value.trim(),nama:tr.querySelector('[data-t=nama]').value.trim(),jab:tr.querySelector('[data-t=jab]').value.trim()})).filter(m=>m.nama);
+    const jad2={};['A','B','C'].forEach(g=>jad2[g]=q(`.jt[data-g=${g}] tr:has([data-j])`,tr=>({keg:tr.querySelector('[data-j=keg]').value.trim(),pic:tr.querySelector('[data-j=pic]').value.trim(),d1:tr.querySelector('[data-j=d1]').value,d2:tr.querySelector('[data-j=d2]').value})).filter(j=>j.keg));
+    const tem2={};document.querySelectorAll('[data-tm]').forEach(t=>{if(t.value.trim())tem2[t.dataset.tm]=t.value.trim()});
+    const pg3=q('#pg2 tr:has([data-p])',tr=>({par:tr.querySelector('[data-p=par]').value,prog:tr.querySelector('[data-p=prog]').value.trim(),item:tr.querySelector('[data-p=item]').value.trim(),ent:tr.querySelector('[data-p=ent]').value.trim(),pic:tr.querySelector('[data-p=pic]').value.trim(),tgt:tr.querySelector('[data-p=tgt]').value,tn:tr.querySelector('[data-p=tn]').value,st:tr.querySelector('[data-p=st]').value})).filter(x=>x.prog);
+    $('#lm').textContent='Menyimpan…';
+    for(const [k,v] of [['identitas',identitas],['tim',tim2],['jadwal',jad2],['temuan',tem2],['program',pg3]]){
+      const r=await call({action:'saveLaporan',iup:LAPIUP,kunci:k,nilai:v});if(!r.ok){$('#lm').innerHTML=`<span class="er">${esc(r.error)}</span>`;return}
+      D.lap=D.lap||{};(D.lap[LAPIUP]=D.lap[LAPIUP]||{})[k]=v}
+    $('#lm').innerHTML='<span class="ok">Tersimpan.</span>'}}
+const progRow=(x,ent)=>`<tr><td><select data-p="par">${Object.keys(MASTER.params).map(k=>`<option value="${k}" ${x.par===k?'selected':''}>${k} ${esc(MASTER.params[k].name.slice(0,40))}</option>`).join('')}</select></td><td><input data-p="prog" size="30" value="${esc(x.prog||'')}"></td><td><input data-p="item" size="8" value="${esc(x.item||'')}"></td><td><input data-p="ent" size="12" placeholder="${ent.map(e=>e.kode).join(', ')}" value="${esc(x.ent||'')}"></td><td><input data-p="pic" size="9" value="${esc(x.pic||'')}"></td><td><input type="date" data-p="tgt" value="${esc(x.tgt||'')}"></td><td><input type="number" step="0.001" data-p="tn" style="width:80px" value="${esc(x.tn??'')}"></td><td><select data-p="st">${['Belum mulai','Berjalan','Selesai'].map(t=>`<option ${x.st===t?'selected':''}>${t}</option>`).join('')}</select></td><td><button class="s" data-px>Hapus</button></td></tr>`;
 function vEkspor(){
   $('#v').innerHTML=`<div class="c"><h2>Ekspor</h2><div class="mu">Cadangan data dan bahan untuk laporan Word. Simpan berkala.</div>
   <div class="row"><button id="e1">Unduh data lengkap (JSON)</button><button class="s" id="e2">Unduh hasil per item (CSV)</button></div></div>`;
