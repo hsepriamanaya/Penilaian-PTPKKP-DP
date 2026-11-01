@@ -161,9 +161,12 @@ async function run(zip, dok, ctx) {
       kidsOf(rPr, 'b').forEach(x => rPr.removeChild(x));
       if (bold) { const b = w('b'); const rf = kidsOf(rPr, 'rFonts')[0]; if (rf) rf.after(b); else rPr.insertBefore(b, rPr.firstChild) }
     }
-    String(text == null ? '' : text).split('\t').forEach((seg, i) => {
-      if (i > 0) base.appendChild(w('tab'));
-      if (seg) { const t = w('t'); t.setAttributeNS(NS_XML, 'xml:space', 'preserve'); t.textContent = seg; base.appendChild(t) }
+    String(text == null ? '' : text).split('\n').forEach((ln, li) => {
+      if (li > 0) base.appendChild(w('br'));
+      ln.split('\t').forEach((seg, i) => {
+        if (i > 0) base.appendChild(w('tab'));
+        if (seg) { const t = w('t'); t.setAttributeNS(NS_XML, 'xml:space', 'preserve'); t.textContent = seg; base.appendChild(t) }
+      });
     });
   }
   function cellSet(tc, text, bold) {
@@ -249,7 +252,7 @@ async function run(zip, dok, ctx) {
     },
     metode(b) {
       const t = TT(100), r = trs(t), ds = Object.assign({}, MET_DESC, (b && b.desc) || {});
-      METHODS.forEach((m, k) => { const c = tcs(r[1 + k]); cellSet(c[1], `${ctx.metN[m] || 0} item`); cellSet(c[2], ds[m] || '') });
+      METHODS.forEach((m, k) => { const c = tcs(r[1 + k]); cellSet(c[1], `${ctx.metN[m] || 0} item`); cellSet(c[2], (ds[m] || '') + ((ctx.samp && ctx.samp[m]) ? '\n' + ctx.samp[m] : '')) });
       return ser(t) + afterTbl;
     },
     matriks() {
