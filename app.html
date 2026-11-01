@@ -40,7 +40,7 @@ table{border-collapse:separate;border-spacing:0;width:100%;border:1px solid var(
 th,td{border-bottom:1px solid var(--bd);padding:8px 10px;text-align:left;vertical-align:top}tr:last-child>td{border-bottom:0}
 th{background:var(--hd);font-weight:650;color:var(--mu);font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
 tbody tr:nth-child(even)>td,table>tr:nth-child(even)>td{background:color-mix(in srgb,var(--hd) 45%,transparent)}tr:hover>td{background:var(--acs)!important}
-.sc{overflow:auto;max-height:72vh;border-radius:10px;border:1px solid var(--bd)}.sc table{border:0;border-radius:0}.sc th{position:sticky;top:0;z-index:2}td.n,th.n{text-align:center}
+.sc table{overflow:visible}.sc{overflow:auto;max-height:72vh;border-radius:10px;border:1px solid var(--bd)}.sc table{border:0;border-radius:0}.sc th{position:sticky;top:0;z-index:2}td.n,th.n{text-align:center}
 .chip{display:inline-block;padding:2px 11px;border-radius:99px;font-weight:650;font-size:.8rem;color:#fff;letter-spacing:.01em}
 .Dasar{background:#dc2626}.Reaktif{background:#ea580c}.Terencana{background:#ca8a04}.Proaktif{background:#16a34a}.Resilient{background:#2563eb}
 .er{color:var(--er)}.ok{color:var(--ok)}.rub{font-size:.88em}.rub>td{background:var(--acs)!important}.rub div{margin:3px 0}.dis{background:var(--hd)}
@@ -71,6 +71,12 @@ tbody tr:nth-child(even)>td,table>tr:nth-child(even)>td{background:color-mix(in 
  .scrim{display:block;position:fixed;inset:0;background:rgba(2,8,23,.5);z-index:25;opacity:0;pointer-events:none;transition:opacity .2s}.scrim.open{opacity:1;pointer-events:auto}
  .hb{display:inline-block}.top{padding:9px 14px}.content{padding:18px 14px 60px}h1{font-size:1.3rem}.sw label{display:none}.sw select{max-width:46vw}
 }
+.sc.tall{max-height:calc(100vh - 210px)}
+.tn{table-layout:fixed;min-width:100%;font-size:.92em}.tn td,.tn th{padding:6px 6px}.tn th{font-size:.7rem;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis}.tn .it{min-width:260px}.tn select{width:52px;padding:5px 2px}
+.tn td.kd,.tn th.kd{position:sticky;left:0;z-index:1;background:var(--card);color:var(--mu);font-variant-numeric:tabular-nums}.tn td.it,.tn th.it{position:sticky;left:62px;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--bd)}
+.tn th.kd,.tn th.it{z-index:3;background:var(--hd)}
+.nb{padding:3px 10px;min-width:34px}.nb.has{background:var(--acs);color:var(--ac);border-color:var(--ac)}
+.ntr>td{background:var(--hd)!important}.ntr textarea{background:var(--card)}
 @media(max-width:960px){.c{overflow-x:auto}}
 @media print{.side,.top{display:none}.app{display:block}}
 </style></head><body><div id="app"></div>
@@ -86,7 +92,7 @@ const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>
 const CATS=['Dasar','Reaktif','Terencana','Proaktif','Resilient'];
 const cat=(x,th)=>{x=Math.round(x*1e4)/1e4;for(let i=0;i<4;i++)if(x<th[i])return CATS[i];return CATS[4]};
 const chip=c=>`<span class="chip ${c}">${c}</span>`;
-let KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1';
+let NOTES_ALL=false,KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1';
 let SCOPE='*',CUSTOM=[];try{SCOPE=sessionStorage.getItem('sml_scope')||'*';CUSTOM=JSON.parse(sessionStorage.getItem('sml_custom')||'[]')}catch(e){}
 const DEF={agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
 
@@ -148,7 +154,7 @@ const ICON={hasil:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',banding:'<path
 const ico=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]||''}</svg>`;
 const NAV=[['Analisis',[['hasil','Hasil'],['banding','Perbandingan']]],['Pengumpulan data',[['nilai','Penilaian'],['ks','Kuesioner & Sampel']]],['Pelaporan',[['lap','Data Laporan'],['dok','Dokumen Laporan'],['ekspor','Ekspor Data']]],['Administrasi',[['ent','Entitas & Pengaturan'],['arsip','Periode & Arsip']]]];
 const ADMIN_ONLY=new Set(['nilai','lap','dok','ekspor','ent','arsip']);
-const PAGE={hasil:['Ringkasan Hasil','Nilai total, tingkat pencapaian per indikator, parameter, dan entitas pada cakupan yang dipilih.'],banding:['Perbandingan Periode','Bandingkan hasil periode berjalan dengan periode yang sudah diarsipkan.'],nilai:['Penilaian per Metode','Isi skor 1–5 untuk setiap entitas berdasarkan rubrik Kepdirjen. Klik Rubrik untuk melihat kriteria tiap level.'],ks:['Kuesioner & Sampel','Populasi, target sampel (Slovin), saran narasumber WWC/FGD, dan rekap jawaban responden yang anonim.'],lap:['Data Laporan','Identitas perusahaan, tim penilai, jadwal, temuan, dan program peningkatan untuk setiap IUP.'],dok:['Dokumen Laporan','Susun struktur dan isi laporan, atur logo dan nama perusahaan, lalu unduh sebagai berkas Word.'],ekspor:['Ekspor Data','Cadangan data lengkap dan hasil per item.'],ent:['Entitas & Pengaturan','Kelola IUP, kontraktor, labor supply, dan aturan perhitungan skor.'],arsip:['Periode & Arsip','Arsipkan periode yang selesai dan mulai periode penilaian baru.']};
+const PAGE={hasil:['Ringkasan Hasil','Nilai total, tingkat pencapaian per indikator, parameter, dan entitas pada cakupan yang dipilih.'],banding:['Perbandingan Periode','Bandingkan hasil periode berjalan dengan periode yang sudah diarsipkan.'],nilai:['Penilaian per Metode','Isi skor 1–5 untuk setiap entitas berdasarkan rubrik Kepdirjen. Klik Lihat pada kolom Rubrik untuk melihat kriteria tiap level; tombol + / ✎ untuk menulis atau membuka catatan.'],ks:['Kuesioner & Sampel','Populasi, target sampel (Slovin), saran narasumber WWC/FGD, dan rekap jawaban responden yang anonim.'],lap:['Data Laporan','Identitas perusahaan, tim penilai, jadwal, temuan, dan program peningkatan untuk setiap IUP.'],dok:['Dokumen Laporan','Susun struktur dan isi laporan, atur logo dan nama perusahaan, lalu unduh sebagai berkas Word.'],ekspor:['Ekspor Data','Cadangan data lengkap dan hasil per item.'],ent:['Entitas & Pengaturan','Kelola IUP, kontraktor, labor supply, dan aturan perhitungan skor.'],arsip:['Periode & Arsip','Arsipkan periode yang selesai dan mulai periode penilaian baru.']};
 const MARK='<svg class="ic" viewBox="0 0 24 24">'+ICON.logo+'</svg>';
 const THEMES=['auto','light','dark'];let THEME='auto',COLL=false;try{COLL=localStorage.getItem('sml_coll')==='1'}catch(e){}try{THEME=localStorage.getItem('sml_theme')||'auto'}catch(e){}
 function applyTheme(){const r=document.documentElement;if(THEME==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',THEME);const b=document.getElementById('th');if(b)b.textContent={auto:'◐ Otomatis',light:'☀ Terang',dark:'☾ Gelap'}[THEME]}
@@ -198,21 +204,25 @@ function vNilai(){
   const its=MASTER.items.filter(i=>i.methods.includes(METHOD)&&i.code.startsWith(INDF==='*'?'':INDF+'.'));
   $('#v').innerHTML=`<div class="c"><div class="row"><b>Metode</b><select id="mt">${METHODS.map(m=>`<option value="${m}" ${m===METHOD?'selected':''}>${m} — ${MNAME[m]}</option>`).join('')}</select>
    <b>Indikator</b><select id="ifl"><option value="*">Semua</option>${[1,2,3,4].map(i=>`<option value="${i}" ${INDF==i?'selected':''}>${i}. ${esc(MASTER.ind[i].slice(0,40))}</option>`).join('')}</select>
-   <button id="sv">Simpan skor</button><span id="sm" class="mu"></span></div>
+   <button id="sv">Simpan skor</button>${METHOD==='KS'?'':`<button class="s" id="nall">${NOTES_ALL?'Sembunyikan catatan':'Tampilkan semua catatan'}</button>`}<span id="sm" class="mu"></span></div>
    ${METHOD==='KS'?'<div class="mu">Skor KS dihitung otomatis dari kuesioner (hanya baca).</div>':'<div class="mu">Pilih skor 1–5 per entitas sesuai rubrik. Kosong = belum dinilai. Item khusus IUP hanya diisi untuk entitas IUP.</div>'}</div>
-   <div class="c"><div class="sc"><table><tr><th>Kode</th><th>Item</th>${ents.map(e=>`<th class="n">${esc(e.kode)}</th>`).join('')}<th class="n">Konsolidasi</th><th>Catatan</th><th></th></tr>
-   ${its.map(it=>{const cons=consolidate(it,METHOD,ents,ks);return`<tr><td>${it.code}</td><td>${esc(it.name)}${it.iup?' <span class="mu">(khusus IUP)</span>':''}</td>
+   <div class="c" style="padding:12px"><div class="sc tall"><table class="tn"><colgroup><col style="width:62px"><col>${ents.map(()=>'<col style="width:64px">').join('')}<col style="width:76px"><col style="width:62px"><col style="width:72px"></colgroup>
+   <tr><th class="kd">Kode</th><th class="it">Item</th>${ents.map(e=>`<th class="n" title="${esc(e.nama)}">${esc(e.kode)}</th>`).join('')}<th class="n" title="Konsolidasi antar-entitas">Konsol.</th><th class="n" title="Catatan penilaian">Cat.</th><th class="n">Rubrik</th></tr>
+   ${its.map(it=>{const cons=consolidate(it,METHOD,ents,ks);const nv=DIRTY['c:'+it.code+'|'+METHOD]??D.cat[it.code+'|'+METHOD]??'';return`<tr><td class="kd">${it.code}</td><td class="it">${esc(it.name)}${it.iup?' <span class="mu">(khusus IUP)</span>':''}</td>
     ${ents.map(e=>{const na=it.iup&&e.peran!=='IUP';if(na)return'<td class="dis"></td>';
      if(METHOD==='KS')return`<td class="n">${ks[e.kode]?.[it.code]??''}</td>`;
      const k=`${it.code}|${METHOD}|${e.kode}`,v=k in DIRTY?DIRTY[k]:(D.skor[k]??'');
      return`<td class="n"><select data-k="${k}"><option></option>${[1,2,3,4,5].map(n=>`<option ${v===n?'selected':''}>${n}</option>`).join('')}</select></td>`}).join('')}
     <td class="n"><b>${cons==null?'':(+cons.toFixed(2))}</b></td>
-    <td>${METHOD==='KS'?'':`<input data-c="${it.code}|${METHOD}" value="${esc(DIRTY['c:'+it.code+'|'+METHOD]??D.cat[it.code+'|'+METHOD]??'')}" size="24">`}</td>
-    <td><button class="s" data-r="${it.code}">Rubrik</button></td></tr>
+    <td class="n">${METHOD==='KS'?'':`<button class="s nb ${nv?'has':''}" data-n="${it.code}" title="${nv?esc(String(nv).slice(0,120)):'Tambah catatan'}">${nv?'✎':'+'}</button>`}</td>
+    <td class="n"><button class="s" data-r="${it.code}">Lihat</button></td></tr>
+    ${METHOD==='KS'?'':`<tr class="ntr" id="n-${it.code}" ${nv&&NOTES_ALL?'':'hidden'}><td></td><td colspan="${ents.length+4}"><div class="mu" style="font-size:.78rem;margin-bottom:3px">Catatan ${it.code}</div><textarea data-c="${it.code}|${METHOD}" rows="2" style="width:100%" placeholder="Tulis catatan / bukti penilaian…">${esc(nv)}</textarea></td></tr>`}
     <tr class="rub" id="r-${it.code}" hidden><td></td><td colspan="${ents.length+4}">${it.rubric.map((t,i)=>`<div><b>${i+1}.</b> ${esc(t)}</div>`).join('')}${it.tgt[METHOD]?`<div class="mu"><b>Target/bukti:</b> ${esc(it.tgt[METHOD])}</div>`:''}</td></tr>`}).join('')}</table></div></div>`;
   $('#mt').onchange=e=>{METHOD=e.target.value;vNilai()};$('#ifl').onchange=e=>{INDF=e.target.value;vNilai()};
   document.querySelectorAll('select[data-k]').forEach(s=>s.onchange=()=>{DIRTY[s.dataset.k]=s.value===''?'':+s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
-  document.querySelectorAll('input[data-c]').forEach(s=>s.onchange=()=>{DIRTY['c:'+s.dataset.c]=s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
+  document.querySelectorAll('[data-c]').forEach(s=>{s.oninput=()=>{DIRTY['c:'+s.dataset.c]=s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan';const b=document.querySelector(`[data-n="${s.dataset.c.split('|')[0]}"]`);if(b){b.classList.toggle('has',!!s.value.trim());b.textContent=s.value.trim()?'✎':'+'}}});
+  document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{const r=document.getElementById('n-'+b.dataset.n);r.hidden=!r.hidden;if(!r.hidden)r.querySelector('textarea').focus()});
+  const na=$('#nall');if(na)na.onclick=()=>{NOTES_ALL=!NOTES_ALL;document.querySelectorAll('.ntr').forEach(r=>{const t=r.querySelector('textarea');r.hidden=!(NOTES_ALL&&t.value.trim())});na.textContent=NOTES_ALL?'Sembunyikan catatan':'Tampilkan semua catatan'};
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const r=document.getElementById('r-'+b.dataset.r);r.hidden=!r.hidden});
   $('#sv').onclick=saveScores}
 async function saveScores(){
