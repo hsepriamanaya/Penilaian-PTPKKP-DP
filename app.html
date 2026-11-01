@@ -2,29 +2,67 @@
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SML PTPKKP — Aplikasi Penilaian</title>
 <style>
-:root{--bg:#f5f7fa;--card:#fff;--tx:#1b2430;--mu:#5f6b7a;--ac:#1f3864;--bd:#d6dde6;--hd:#e9eef5;--ok:#2e7d32;--er:#c62828}
-@media(prefers-color-scheme:dark){:root{--bg:#10151c;--card:#19212b;--tx:#e8edf3;--mu:#9aa7b6;--ac:#7fa6e6;--bd:#2c3846;--hd:#202b38}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif}
-.w{max-width:1280px;margin:0 auto;padding:12px 16px}
-h1{font-size:1.2rem;margin:.2rem 0}h2{font-size:1.05rem;margin:.2rem 0 .6rem}.mu{color:var(--mu)}
-.c{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin:10px 0}
-nav{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}nav button{background:var(--card);color:var(--tx);border:1px solid var(--bd)}nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
-@media(prefers-color-scheme:dark){nav button.on{color:#10151c}}
-button{background:var(--ac);color:#fff;border:0;border-radius:7px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
-@media(prefers-color-scheme:dark){button{color:#10151c}}
-button.s{background:var(--card);color:var(--tx);border:1px solid var(--bd)}button:disabled{opacity:.5}
-input,select,textarea{padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);font:inherit;max-width:100%}
-table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--bd);padding:5px 7px;text-align:left;vertical-align:top}th{background:var(--hd);position:sticky;top:0}
-.sc{overflow:auto;max-height:70vh}td.n,th.n{text-align:center}
-.chip{display:inline-block;padding:1px 8px;border-radius:10px;font-weight:600;font-size:.85em;color:#fff}
-.Dasar{background:#c62828}.Reaktif{background:#ef6c00}.Terencana{background:#b59b00}.Proaktif{background:#2e7d32}.Resilient{background:#1565c0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.k{font-size:1.6rem;font-weight:700}
-.er{color:var(--er)}.ok{color:var(--ok)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
-.rub{font-size:.85em;background:var(--hd)}.rub div{margin:2px 0}
-.dis{background:var(--hd)}
-</style></head><body><div class="w">
-<h1>SML / PTPKKP — Aplikasi Penilaian <span class="mu" id="who"></span></h1>
-<div id="app"></div></div>
+:root{--bg:#f3f6fb;--card:#fff;--tx:#0f172a;--mu:#64748b;--ac:#1d4ed8;--ac2:#173ea8;--acs:#e8efff;--bd:#e2e8f0;--hd:#f1f5fb;--ok:#15803d;--er:#b91c1c;--wa:#b45309;--sh:0 1px 2px rgba(15,23,42,.05),0 6px 18px rgba(15,23,42,.05);--side:#0e1b36;--sidetx:#b9c6e0;--r:12px;--fo:0 0 0 3px rgba(29,78,216,.22)}
+:root[data-theme=dark]{--bg:#0a1120;--card:#111b30;--tx:#e6ecf7;--mu:#8fa0bd;--ac:#6ea8fe;--ac2:#8bb9ff;--acs:#172544;--bd:#22304d;--hd:#16233d;--ok:#4ade80;--er:#f87171;--wa:#fbbf24;--sh:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);--side:#070d1b;--fo:0 0 0 3px rgba(110,168,254,.3)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0a1120;--card:#111b30;--tx:#e6ecf7;--mu:#8fa0bd;--ac:#6ea8fe;--ac2:#8bb9ff;--acs:#172544;--bd:#22304d;--hd:#16233d;--ok:#4ade80;--er:#f87171;--wa:#fbbf24;--sh:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);--side:#070d1b;--fo:0 0 0 3px rgba(110,168,254,.3)}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 Inter,"Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+h1{font-size:1.55rem;margin:0;letter-spacing:-.01em}h2{font-size:1.02rem;margin:0 0 .7rem;font-weight:650}.mu{color:var(--mu)}code{background:var(--hd);padding:1px 6px;border-radius:5px;font-size:.92em}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+/* tata letak */
+.app{display:grid;grid-template-columns:268px minmax(0,1fr);min-height:100vh}
+.side{background:linear-gradient(180deg,var(--side),color-mix(in srgb,var(--side) 82%,#1d4ed8));color:var(--sidetx);position:sticky;top:0;height:100vh;overflow:auto;padding:20px 14px 14px;display:flex;flex-direction:column;z-index:30}
+.brand{display:flex;gap:11px;align-items:center;padding:0 8px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand .mk{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#1e40af);display:grid;place-items:center;color:#fff;box-shadow:0 4px 14px rgba(59,130,246,.45)}
+.brand b{display:block;color:#fff;font-size:1rem;letter-spacing:.01em}.brand small{display:block;font-size:.7rem;color:#8da0c4;line-height:1.25}
+.side nav{flex:1;margin-top:6px}.ng{margin-top:16px}.ng h4{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:#6f83ab;margin:0 10px 6px;font-weight:700}
+.side nav button{display:flex;gap:11px;align-items:center;width:100%;background:none;color:var(--sidetx);border:0;padding:9px 11px;border-radius:9px;font:inherit;font-weight:550;text-align:left;cursor:pointer;margin:1px 0;transition:background .15s,color .15s;position:relative}
+.side nav button:hover{background:rgba(255,255,255,.07);color:#fff}
+.side nav button.on{background:rgba(96,165,250,.18);color:#fff}.side nav button.on::before{content:"";position:absolute;left:-14px;top:7px;bottom:7px;width:4px;border-radius:0 4px 4px 0;background:#60a5fa}
+.sf{border-top:1px solid rgba(255,255,255,.08);padding:14px 8px 2px;margin-top:14px}.sf .co b{display:block;color:#fff;font-size:.88rem}.sf .co small{color:#8da0c4}
+.usr{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px}.rl{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:99px;background:rgba(96,165,250,.2);color:#bcd7ff}
+.main{min-width:0}.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd);padding:10px 28px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sw{display:flex;align-items:center;gap:8px}.sw label{font-weight:650;color:var(--mu);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}.sp{flex:1}
+.content{padding:24px 28px 70px;max-width:1440px}.ph{margin-bottom:18px}.ph p{margin:.3rem 0 0;color:var(--mu);max-width:78ch}
+.hb,.scrim{display:none}
+/* komponen */
+.c{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin:14px 0;box-shadow:var(--sh)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.grid>.c{margin:0}.k{font-size:2rem;font-weight:750;letter-spacing:-.02em;line-height:1.15}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:6px 0}
+button{background:var(--ac);color:#fff;border:1px solid transparent;border-radius:9px;padding:8px 15px;font:inherit;font-weight:600;cursor:pointer;transition:filter .15s,transform .05s,box-shadow .15s}
+:root[data-theme=dark] :is(.content,.lc) button:not(.s):not(.g){color:#07101f}@media(prefers-color-scheme:dark){:root:not([data-theme=light]) :is(.content,.lc) button:not(.s):not(.g){color:#07101f}}
+button:hover{filter:brightness(1.08)}button:active{transform:translateY(1px)}button:focus-visible,input:focus,select:focus,textarea:focus{outline:none;box-shadow:var(--fo);border-color:var(--ac)}
+button.s{background:var(--card);color:var(--tx);border-color:var(--bd)}button.s:hover{background:var(--hd);filter:none}button:disabled{opacity:.5;cursor:not-allowed}
+button.g{background:transparent;color:inherit;border:1px solid rgba(148,163,184,.35);padding:6px 11px;font-weight:550}.top button.g{color:var(--tx);border-color:var(--bd)}.top button.g:hover{background:var(--hd)}.side button.g{color:#d5e1f7}.side button.g:hover{background:rgba(255,255,255,.08)}
+input,select,textarea{padding:7px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit;max-width:100%;transition:border-color .15s,box-shadow .15s}
+input[type=checkbox],input[type=radio]{accent-color:var(--ac);width:16px;height:16px;padding:0}textarea{resize:vertical}
+table{border-collapse:separate;border-spacing:0;width:100%;border:1px solid var(--bd);border-radius:10px;overflow:hidden;font-size:.93em}
+th,td{border-bottom:1px solid var(--bd);padding:8px 10px;text-align:left;vertical-align:top}tr:last-child>td{border-bottom:0}
+th{background:var(--hd);font-weight:650;color:var(--mu);font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+tbody tr:nth-child(even)>td,table>tr:nth-child(even)>td{background:color-mix(in srgb,var(--hd) 45%,transparent)}tr:hover>td{background:var(--acs)!important}
+.sc{overflow:auto;max-height:72vh;border-radius:10px;border:1px solid var(--bd)}.sc table{border:0;border-radius:0}.sc th{position:sticky;top:0;z-index:2}td.n,th.n{text-align:center}
+.chip{display:inline-block;padding:2px 11px;border-radius:99px;font-weight:650;font-size:.8rem;color:#fff;letter-spacing:.01em}
+.Dasar{background:#dc2626}.Reaktif{background:#ea580c}.Terencana{background:#ca8a04}.Proaktif{background:#16a34a}.Resilient{background:#2563eb}
+.er{color:var(--er)}.ok{color:var(--ok)}.rub{font-size:.88em}.rub>td{background:var(--acs)!important}.rub div{margin:3px 0}.dis{background:var(--hd)}
+.pb{height:7px;background:var(--bd);border-radius:5px;overflow:hidden;min-width:70px;margin-bottom:3px}.pb i{display:block;height:100%;border-radius:5px;background:var(--ac)}
+.pb.Dasar i{background:#dc2626}.pb.Reaktif i{background:#ea580c}.pb.Terencana i{background:#ca8a04}.pb.Proaktif i{background:#16a34a}.pb.Resilient i{background:#2563eb}
+.scale{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:12px 0 4px;position:relative}.scale i{display:block;height:100%}.scale u{position:absolute;top:-4px;width:3px;height:17px;background:var(--tx);border-radius:2px;transform:translateX(-50%)}
+.sl{position:relative;height:14px;font-size:.68rem;color:var(--mu)}.sl span{position:absolute;transform:translateX(-50%)}.sl span:first-child{transform:none}.sl span:last-child{transform:translateX(-100%)}
+.hero{background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 14%,var(--card)),var(--card))}
+.empty{padding:28px;text-align:center;color:var(--mu)}
+/* masuk */
+.lg{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(1000px 500px at 80% -10%,color-mix(in srgb,var(--ac) 22%,transparent),transparent),var(--bg)}
+.lc{width:100%;max-width:420px;background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:30px;box-shadow:0 20px 50px rgba(15,23,42,.14)}
+.lc .mk{width:50px;height:50px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#1e40af);display:grid;place-items:center;color:#fff;margin-bottom:14px;box-shadow:0 6px 18px rgba(59,130,246,.4)}.lc .ic{width:26px;height:26px}
+.lc h2{font-size:1.3rem;margin:0}.lc input{width:100%;padding:11px 13px}.lc button{width:100%;padding:11px;margin-top:10px}.lc a{color:var(--ac);text-decoration:none;font-size:.85rem}
+@media(max-width:960px){
+ .app{grid-template-columns:1fr}.side{position:fixed;left:0;top:0;bottom:0;width:270px;transform:translateX(-102%);transition:transform .22s;box-shadow:0 0 40px rgba(0,0,0,.4)}.side.open{transform:none}
+ .scrim{display:block;position:fixed;inset:0;background:rgba(2,8,23,.5);z-index:25;opacity:0;pointer-events:none;transition:opacity .2s}.scrim.open{opacity:1;pointer-events:auto}
+ .hb{display:inline-block}.top{padding:9px 14px}.content{padding:18px 14px 60px}h1{font-size:1.3rem}.sw label{display:none}.sw select{max-width:46vw}
+}
+@media(max-width:960px){.c{overflow-x:auto}}
+@media print{.side,.top{display:none}.app{display:block}}
+</style></head><body><div id="app"></div>
 <script src="master_web.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="dokumen_default.js"></script>
@@ -95,31 +133,51 @@ function calc(ents,ks,useOvr=true){
   R.cat=cat(R.total,MASTER.th_tot);R.comp=tc/tw;return R}
 
 /* ===== Tampilan ===== */
+const ICON={hasil:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',banding:'<path d="M7 7h13M7 7l3-3M7 7l3 3M17 17H4M17 17l-3-3M17 17l-3 3"/>',nilai:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 14l2 2 4-4"/>',ks:'<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',lap:'<path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/>',dok:'<path d="M4 4h12l4 4v12H4zM8 12h8M8 16h5M8 8h4"/>',ekspor:'<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',ent:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6M17 5a3.5 3.5 0 0 1 0 7M22 20c0-2.5-1.500-4.500-4-5.500"/>',arsip:'<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/>',logo:'<path d="M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>'};
+const ico=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]||''}</svg>`;
+const NAV=[['Analisis',[['hasil','Hasil'],['banding','Perbandingan']]],['Pengumpulan data',[['nilai','Penilaian'],['ks','Kuesioner & Sampel']]],['Pelaporan',[['lap','Data Laporan'],['dok','Dokumen Laporan'],['ekspor','Ekspor Data']]],['Administrasi',[['ent','Entitas & Pengaturan'],['arsip','Periode & Arsip']]]];
+const ADMIN_ONLY=new Set(['nilai','lap','dok','ekspor','ent','arsip']);
+const PAGE={hasil:['Ringkasan Hasil','Nilai total, tingkat pencapaian per indikator, parameter, dan entitas pada cakupan yang dipilih.'],banding:['Perbandingan Periode','Bandingkan hasil periode berjalan dengan periode yang sudah diarsipkan.'],nilai:['Penilaian per Metode','Isi skor 1–5 untuk setiap entitas berdasarkan rubrik Kepdirjen. Klik Rubrik untuk melihat kriteria tiap level.'],ks:['Kuesioner & Sampel','Populasi, target sampel (Slovin), saran narasumber WWC/FGD, dan rekap jawaban responden yang anonim.'],lap:['Data Laporan','Identitas perusahaan, tim penilai, jadwal, temuan, dan program peningkatan untuk setiap IUP.'],dok:['Dokumen Laporan','Susun struktur dan isi laporan, atur logo dan nama perusahaan, lalu unduh sebagai berkas Word.'],ekspor:['Ekspor Data','Cadangan data lengkap dan hasil per item.'],ent:['Entitas & Pengaturan','Kelola IUP, kontraktor, labor supply, dan aturan perhitungan skor.'],arsip:['Periode & Arsip','Arsipkan periode yang selesai dan mulai periode penilaian baru.']};
+const MARK='<svg class="ic" viewBox="0 0 24 24">'+ICON.logo+'</svg>';
+const THEMES=['auto','light','dark'];let THEME='auto';try{THEME=localStorage.getItem('sml_theme')||'auto'}catch(e){}
+function applyTheme(){const r=document.documentElement;if(THEME==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',THEME);const b=document.getElementById('th');if(b)b.textContent={auto:'◐ Otomatis',light:'☀ Terang',dark:'☾ Gelap'}[THEME]}
+applyTheme();
 function shell(){
-  const tabs=ROLE==='admin'?[['hasil','Hasil'],['nilai','Penilaian'],['ks','Kuesioner'],['ent','Entitas & Pengaturan'],['banding','Perbandingan'],['lap','Data Laporan'],['dok','Dokumen Laporan'],['arsip','Periode & Arsip'],['ekspor','Ekspor']]:[['hasil','Hasil'],['ks','Kuesioner'],['banding','Perbandingan']];
+  const admin=ROLE==='admin';
   const iups=allEnt().filter(e=>e.peran==='IUP');
   if(SCOPE.startsWith('iup:')&&!iups.some(e=>'iup:'+e.kode===SCOPE))SCOPE='*';
-  $('#who').textContent=`— ${D.cfg.perusahaan||''} ${D.cfg.periode||''} (${ROLE==='admin'?'Auditor/Admin':'Pembaca'})`;
-  $('#app').innerHTML=`<nav>${tabs.map(t=>`<button class="${TAB===t[0]?'on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}<span class="row" style="margin-left:auto"><b>Cakupan</b><select id="sc"><option value="*" ${SCOPE==='*'?'selected':''}>Seluruh grup</option>${iups.map(e=>`<option value="iup:${esc(e.kode)}" ${SCOPE==='iup:'+e.kode?'selected':''}>${esc(e.nama)} + kontraktor/vendor</option>`).join('')}<option value="custom" ${SCOPE==='custom'?'selected':''}>Pilih manual…</option></select></span><button class="s" id="rl">Muat ulang data</button><button class="s" id="lo">Keluar</button></nav>${SCOPE==='custom'?`<div class="c"><b>Entitas yang dihitung:</b> ${allEnt().map(e=>`<label style="margin-right:14px"><input type="checkbox" data-cs="${esc(e.kode)}" ${CUSTOM.includes(e.kode)?'checked':''}> ${esc(e.kode)}</label>`).join('')}</div>`:''}<div id="v"></div>`;
+  if(!admin&&ADMIN_ONLY.has(TAB))TAB='hasil';
+  const nav=NAV.map(([g,items])=>{const its=items.filter(([k])=>admin||!ADMIN_ONLY.has(k));return its.length?`<div class="ng"><h4>${g}</h4>${its.map(([k,l])=>`<button class="${TAB===k?'on':''}" data-t="${k}">${ico(k)}<span>${l}</span></button>`).join('')}</div>`:''}).join('');
+  const pg=PAGE[TAB]||['',''];
+  $('#app').innerHTML=`<div class="app"><aside class="side" id="sd"><div class="brand"><div class="mk">${MARK}</div><div><b>SML · PTPKKP</b><small>Kepdirjen Minerba<br>No. 10.K/MB.01/DJB.T/2023</small></div></div><nav>${nav}</nav>
+   <div class="sf"><div class="co"><b>${esc(D.cfg.perusahaan||'Perusahaan belum diisi')}</b><small>${esc(D.cfg.periode||'Periode belum diisi')}</small></div><div class="usr"><span class="rl">${admin?'Auditor / Admin':'Pembaca'}</span><button class="g" id="lo">Keluar</button></div></div></aside><div class="scrim" id="scr"></div>
+   <div class="main"><header class="top"><button class="g hb" id="hb" aria-label="Menu">☰ Menu</button><div class="sw"><label for="sc">Cakupan</label><select id="sc"><option value="*" ${SCOPE==='*'?'selected':''}>Seluruh grup</option>${iups.map(e=>`<option value="iup:${esc(e.kode)}" ${SCOPE==='iup:'+e.kode?'selected':''}>${esc(e.nama)} + kontraktor/vendor</option>`).join('')}<option value="custom" ${SCOPE==='custom'?'selected':''}>Pilih manual…</option></select></div><span class="sp"></span><button class="g" id="th" title="Ganti tema"></button><button class="g" id="rl">↻ Muat ulang</button></header>
+   <main class="content"><div class="ph"><h1>${pg[0]}</h1><p>${pg[1]}</p></div>${SCOPE==='custom'?`<div class="c"><b>Entitas yang dihitung:</b> ${allEnt().map(e=>`<label style="margin-right:14px"><input type="checkbox" data-cs="${esc(e.kode)}" ${CUSTOM.includes(e.kode)?'checked':''}> ${esc(e.kode)}</label>`).join('')}</div>`:''}<div id="v"></div></main></div></div>`;
+  applyTheme();
   $('#sc').onchange=e=>{SCOPE=e.target.value;try{sessionStorage.setItem('sml_scope',SCOPE)}catch(x){}shell()};
   document.querySelectorAll('[data-cs]').forEach(c=>c.onchange=()=>{CUSTOM=[...document.querySelectorAll('[data-cs]:checked')].map(i=>i.dataset.cs);try{sessionStorage.setItem('sml_custom',JSON.stringify(CUSTOM))}catch(x){}shell()});
-  document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;shell()});
+  document.querySelectorAll('.side nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;window.scrollTo(0,0);shell()});
+  const tg=o=>{$('#sd').classList.toggle('open',o);$('#scr').classList.toggle('open',o)};
+  $('#hb').onclick=()=>tg(true);$('#scr').onclick=()=>tg(false);
+  $('#th').onclick=()=>{THEME=THEMES[(THEMES.indexOf(THEME)+1)%3];try{localStorage.setItem('sml_theme',THEME)}catch(e){}applyTheme()};
   $('#lo').onclick=()=>logout();
   $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
   ({hasil:vHasil,nilai:vNilai,ks:vKs,ent:vEnt,ekspor:vEkspor,arsip:vArsip,banding:vBanding,lap:vLaporan,dok:vDokumen})[TAB]()}
+const pbar=(p)=>{const c=cat(p,MASTER.th_item);return`<div class="pb ${c}"><i style="width:${Math.min(100,p*100).toFixed(0)}%"></i></div>${(p*100).toFixed(0)}%`};
+const scaleBar=v=>`<div class="scale"><i style="width:50%;background:#dc2626"></i><i style="width:20%;background:#ea580c"></i><i style="width:10%;background:#ca8a04"></i><i style="width:10%;background:#16a34a"></i><i style="width:10%;background:#2563eb"></i><u style="left:${Math.max(0,Math.min(100,v*100))}%"></u></div><div class="sl"><span style="left:0">0</span><span style="left:50%">0,5</span><span style="left:70%">0,7</span><span style="left:80%">0,8</span><span style="left:90%">0,9</span><span style="left:100%">1</span></div>`;
 
 function vHasil(){
   const ents=activeEnt(),ks=ksScores(),R=calc(ents,ks);window.R=R;
   const rows=Object.entries(R.params).sort((a,b)=>b[1].gap-a[1].gap);
   const rank={};rows.forEach(([p],i)=>rank[p]=i+1);
   const perEnt=ents.map(e=>{const r=calc([e],ks);return{e,r}});
-  $('#v').innerHTML=`<div class="grid"><div class="c"><div class="mu">Nilai total</div><div class="k">${R.total.toFixed(4)}</div>${chip(R.cat)}</div>
+  $('#v').innerHTML=`<div class="grid"><div class="c hero"><div class="mu">Nilai total</div><div class="k">${R.total.toFixed(4)} ${chip(R.cat)}</div>${scaleBar(R.total)}</div>
    <div class="c"><div class="mu">Kelengkapan input</div><div class="k ${R.comp<1?'er':'ok'}">${(R.comp*100).toFixed(0)}%</div><div class="mu">${R.comp<1?'Skor yang belum diisi dihitung 0 — total belum final':'Lengkap'}</div></div>
    <div class="c"><div class="mu">Aturan aktif</div><div>Cakupan: <b>${esc(scopeName())}</b><br>Antar-entitas: <b>${D.cfg.agg}</b><br>Skor akhir item: <b>${D.cfg.itemrule}</b><br>Entitas aktif: <b>${ents.length}</b></div></div></div>
   <div class="c"><h2>Per indikator</h2><table><tr><th>No</th><th>Indikator</th><th class="n">Bobot</th><th class="n">Nilai capaian</th><th class="n">% terpenuhi</th><th>Tingkat</th></tr>
-   ${[1,2,3,4].map(i=>`<tr><td>${i}</td><td>${esc(R.inds[i].name)}</td><td class="n">${R.inds[i].mx.toFixed(2)}</td><td class="n">${R.inds[i].cap.toFixed(4)}</td><td class="n">${(R.inds[i].pct*100).toFixed(0)}%</td><td>${chip(R.inds[i].cat)}</td></tr>`).join('')}</table></div>
+   ${[1,2,3,4].map(i=>`<tr><td>${i}</td><td>${esc(R.inds[i].name)}</td><td class="n">${R.inds[i].mx.toFixed(2)}</td><td class="n">${R.inds[i].cap.toFixed(4)}</td><td class="n" style="min-width:110px">${pbar(R.inds[i].pct)}</td><td>${chip(R.inds[i].cat)}</td></tr>`).join('')}</table></div>
   <div class="c"><h2>Per parameter (urut prioritas gap)</h2><div class="sc"><table><tr><th class="n">Prioritas</th><th>Parameter</th><th class="n">Item</th><th class="n">Bobot</th><th class="n">Σ skor</th><th class="n">%</th><th class="n">Nilai capaian</th><th class="n">Gap</th><th>Tingkat</th></tr>
-   ${rows.map(([p,x])=>`<tr><td class="n">${rank[p]}</td><td>${p} ${esc(x.name)}</td><td class="n">${x.n}</td><td class="n">${x.w.toFixed(2)}</td><td class="n">${x.sum}/${5*x.n}</td><td class="n">${(x.pct*100).toFixed(0)}%</td><td class="n">${x.cap.toFixed(4)}</td><td class="n">${x.gap.toFixed(4)}</td><td>${chip(x.cat)}</td></tr>`).join('')}</table></div></div>
+   ${rows.map(([p,x])=>`<tr><td class="n">${rank[p]}</td><td>${p} ${esc(x.name)}</td><td class="n">${x.n}</td><td class="n">${x.w.toFixed(2)}</td><td class="n">${x.sum}/${5*x.n}</td><td class="n" style="min-width:110px">${pbar(x.pct)}</td><td class="n">${x.cap.toFixed(4)}</td><td class="n">${x.gap.toFixed(4)}</td><td>${chip(x.cat)}</td></tr>`).join('')}</table></div></div>
   <div class="c"><h2>Per entitas <span class="mu">(indikatif — hanya dari skor entitas itu; nilai resmi = nilai total di atas)</span></h2><table><tr><th>Entitas</th><th>Peran</th><th class="n">Indeks</th><th>Tingkat</th><th class="n">Kelengkapan</th></tr>
    ${perEnt.map(({e,r})=>`<tr><td>${esc(e.nama)}</td><td>${esc(e.peran)}</td><td class="n">${r.total.toFixed(4)}</td><td>${chip(r.cat)}</td><td class="n">${(r.comp*100).toFixed(0)}%</td></tr>`).join('')}</table></div>`}
 
@@ -303,7 +361,7 @@ function logout(auto){
 let _idle;const _rst=()=>{clearTimeout(_idle);if(KEY)_idle=setTimeout(()=>{if(KEY&&!Object.keys(DIRTY).length)logout(true);else _rst()},30*60*1000)};
 ['click','keydown','mousemove','touchstart'].forEach(ev=>document.addEventListener(ev,_rst,{passive:true}));
 function login(msg=''){
-  $('#app').innerHTML=`<div class="c" style="max-width:420px"><h2>Masuk</h2><div class="mu">Masukkan kunci akses dari koordinator (auditor = kunci admin, KTT/manajemen = kunci baca).</div><div class="row"><input id="k" type="password" placeholder="Kunci akses" style="flex:1"><button id="go">Masuk</button></div><div class="er">${msg}</div></div>`;
+  $('#app').innerHTML=`<div class="lg"><div class="lc"><div class="mk">${MARK}</div><h2>SML · PTPKKP</h2><div class="mu" style="margin:4px 0 16px">Aplikasi penilaian tingkat pencapaian kinerja keselamatan pertambangan. Masukkan kunci akses dari koordinator (auditor = kunci admin, KTT/manajemen = kunci baca).</div><input id="k" type="password" placeholder="Kunci akses" autocomplete="current-password"><button id="go">Masuk</button><div class="er" style="margin-top:10px;min-height:1.2em">${esc(msg)}</div><div style="margin-top:12px"><a href="index.html">← Kembali ke beranda</a></div></div></div>`;
   $('#go').onclick=async()=>{KEY=$('#k').value.trim();$('#go').disabled=true;const r=await load();if(!r.ok){login(r.error||'Gagal');return}try{sessionStorage.setItem('sml_key',KEY)}catch(e){}_rst();shell()};
   $('#k').onkeydown=e=>{if(e.key==='Enter')$('#go').click()}}
 (async()=>{if(API_URL.startsWith('GANTI'))return $('#app').innerHTML='<div class="c er">API_URL belum diisi (lihat PANDUAN).</div>';
