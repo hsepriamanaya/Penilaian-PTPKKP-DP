@@ -18,7 +18,7 @@ const wTags = (it, m) => { // level narasumber yang disasar item (dari kolom tar
   return r;
 };
 const wApplies = (it, m, level) => { const t = wTags(it, m); return !t.length || t.includes(level) };
-const wItems = (m, ent) => MASTER.items.filter(i => i.methods.includes(m) && !(i.iup && ent && ent.peran !== 'IUP'));
+const wItems = (m, ent) => MASTER.items.filter(i => i.methods.includes(m) && !(i.iup && ent && ent.peran !== 'IUP') && !(ent && isNA(i.code, ent.kode)));   /* item N/A bagi entitas tidak ikut diwawancarai */
 const wRecs = (m, ent) => (D.wwc || []).filter(r => r.metode === m && (!ent || r.entitas === ent));
 const wRound = a => D.cfg.ksround === 'Dibulatkan ke bawah' ? Math.floor(a) : Math.round(a);
 
@@ -97,7 +97,7 @@ function vWwc() {
   <div class="c"><div class="row"><h2 style="margin:0">Rekap skor ${mn} per item</h2><span style="margin-left:auto" class="row"><span id="wam" class="mu"></span><button id="wapply">Terapkan ke tab Penilaian</button></span></div>
    <div class="mu" style="margin:4px 0 8px">Angka = skor akhir (n = jumlah lembar yang dipakai). Sel kosong = belum ada lembar yang menilai item itu untuk entitas tersebut.</div>
    <details><summary style="cursor:pointer;font-weight:600">Tampilkan tabel rekap (${wItems(WM).length} item)</summary><div class="sc tall" style="margin-top:8px"><table class="tn"><colgroup><col style="width:62px"><col>${entSel.map(() => '<col style="width:78px">').join('')}</colgroup><tr><th class="kd">Kode</th><th class="it">Item</th>${entSel.map(e => `<th class="n">${esc(e.kode)}</th>`).join('')}</tr>
-   ${wItems(WM).map(it => `<tr><td class="kd">${it.code}</td><td class="it">${esc(it.name)}</td>${entSel.map(e => { if (it.iup && e.peran !== 'IUP') return '<td class="dis"></td>'; const x = sc[e.kode][it.code]; return `<td class="n">${x ? `<b>${x.s}</b> <span class="mu">n=${x.n}</span>` : ''}</td>` }).join('')}</tr>`).join('')}</table></div></details></div>`;
+   ${wItems(WM).map(it => `<tr><td class="kd">${it.code}</td><td class="it">${esc(it.name)}</td>${entSel.map(e => { if (it.iup && e.peran !== 'IUP') return '<td class="dis"></td>'; if (isNA(it.code, e.kode)) return '<td class="n nacell">N/A</td>'; const x = sc[e.kode][it.code]; return `<td class="n">${x ? `<b>${x.s}</b> <span class="mu">n=${x.n}</span>` : ''}</td>` }).join('')}</tr>`).join('')}</table></div></details></div>`;
   wBind(ents, sc);
   if (WSEL) wSheet();
 }

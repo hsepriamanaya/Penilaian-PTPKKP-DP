@@ -43,7 +43,7 @@ tbody tr:nth-child(even)>td,table>tr:nth-child(even)>td{background:color-mix(in 
 .sc table{overflow:visible}.sc{overflow:auto;max-height:72vh;border-radius:10px;border:1px solid var(--bd)}.sc table{border:0;border-radius:0}.sc th{position:sticky;top:0;z-index:2}td.n,th.n{text-align:center}
 .chip{display:inline-block;padding:2px 11px;border-radius:99px;font-weight:650;font-size:.8rem;color:#fff;letter-spacing:.01em}
 .Dasar{background:#dc2626}.Reaktif{background:#ea580c}.Terencana{background:#ca8a04}.Proaktif{background:#16a34a}.Resilient{background:#2563eb}
-.er{color:var(--er)}.ok{color:var(--ok)}.rub{font-size:.88em}.rub>td{background:var(--acs)!important}.rub div{margin:3px 0}.dis{background:var(--hd)}
+.er{color:var(--er)}.ok{color:var(--ok)}.rub{font-size:.88em}.rub>td{background:var(--acs)!important}.rub div{margin:3px 0}.dis{background:var(--hd)}.nacell{background:var(--hd)}.nacell select{color:var(--mu);font-style:italic}.nacell:not(:has(select)){color:var(--mu);font-style:italic;font-size:.8rem}
 .pb{height:7px;background:var(--bd);border-radius:5px;overflow:hidden;min-width:70px;margin-bottom:3px}.pb i{display:block;height:100%;border-radius:5px;background:var(--ac)}
 .pb.Dasar i{background:#dc2626}.pb.Reaktif i{background:#ea580c}.pb.Terencana i{background:#ca8a04}.pb.Proaktif i{background:#16a34a}.pb.Resilient i{background:#2563eb}
 .scale{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:12px 0 4px;position:relative}.scale i{display:block;height:100%}.scale u{position:absolute;top:-4px;width:3px;height:17px;background:var(--tx);border-radius:2px;transform:translateX(-50%)}
@@ -84,6 +84,7 @@ tbody tr:nth-child(even)>td,table>tr:nth-child(even)>td{background:color-mix(in 
 @media print{.side,.top{display:none}.app{display:block}}
 </style></head><body><div id="app"></div>
 <script src="master_web.js"></script>
+<script src="relevansi.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="dokumen_default.js"></script>
 <script src="laporan_docx.js"></script>
@@ -161,9 +162,23 @@ function ksScores(){ // {entitas: {item: skor}} dari rekap kuesioner
     D.KS_Rekap.filter(g=>g.entitas===e.kode&&it.levels.includes(g.level.toUpperCase())&&lvOn(g.level)&&g.n>=min&&g.cnt[it.code]>0).forEach(g=>{const a=g.sum[it.code]/g.cnt[it.code];sc.push(D.cfg.ksround==='Dibulatkan ke bawah'?Math.floor(a):Math.round(a))});
     if(sc.length)res[e.kode][it.code]=Math.min(...sc)})});return res}
 let KS_ITEMS_M=MASTER.items.filter(i=>i.methods.includes('KS'));
+/* N/A = item tidak berlaku bagi entitas (mis. kontraktor/vendor yang tidak terlibat desain tambang). Disimpan sebagai metode semu 'NA' bernilai 0;
+   berlaku untuk semua metode pada item itu. Entitas N/A dikeluarkan dari konsolidasi; item yang N/A bagi SEMUA entitas dalam cakupan dikeluarkan dari perhitungan. */
+const naKey=(c,e)=>`${c}|NA|${e}`,entEl=(it,ents)=>it.iup?ents.filter(e=>e.peran==='IUP'):ents;
+/* Profil vendor (relevansi.js): Penuh / Produksi / Labor Supply. Profil Otomatis: peran Labor Supply → Labor Supply; IUJP berlingkup produksi yang bukan kontraktor utama → Produksi; lainnya → Penuh.
+   Disimpan di Config sebagai profil_<KODE>. Nilai Skor 'NA': 0 = N/A paksa, 1 = berlaku paksa (menimpa profil), kosong = ikut profil. */
+const PROF_LIST=['Penuh','Produksi','Labor Supply'],PNA={},NOSET=new Set();Object.keys(PROFIL).forEach(k=>PNA[k]=new Set(PROFIL[k].na.map(x=>x[0])));
+const profAuto=e=>!e||e.peran==='IUP'?'Penuh':e.peran==='Labor Supply'?'Labor Supply':(e.peran==='IUJP'&&/produksi/i.test(e.lingkup||'')&&!/utama/i.test(e.lingkup||''))?'Produksi':'Penuh';
+const profOf=e=>{if(!e||e.peran==='IUP')return'Penuh';const v=D.cfg['profil_'+e.kode];return PROF_LIST.includes(v)?v:profAuto(e)};
+const profNA=kode=>{const e=D.Entitas.find(x=>x.kode===kode);return e?(PNA[profOf(e)]||NOSET):NOSET};
+const isNA=(c,e)=>{const x=D.skor[naKey(c,e)];return x===0?true:x===1?false:profNA(e).has(c)};
+const naNow=(c,e)=>{const nk=naKey(c,e),x=nk in DIRTY?DIRTY[nk]:D.skor[nk];return x===0?true:x===1?false:profNA(e).has(c)};
+function setNA(c,e,on){const nk=naKey(c,e),prof=profNA(e).has(c),saved=D.skor[nk],want=on===prof?'':(on?0:1);
+  if(want===''){if(saved===undefined)delete DIRTY[nk];else DIRTY[nk]=''}else{if(saved===want)delete DIRTY[nk];else DIRTY[nk]=want}}
+const naItem=(it,ents)=>{const el=entEl(it,ents);return el.length>0&&el.every(e=>isNA(it.code,e.kode))};
 function entScore(it,m,e,ks){return m==='KS'?ks[e.kode]?.[it.code]:D.skor[`${it.code}|${m}|${e.kode}`]}
 function consolidate(it,m,ents,ks){
-  const el=(it.iup?ents.filter(e=>e.peran==='IUP'):ents),v=[];
+  const el=entEl(it,ents).filter(e=>!isNA(it.code,e.kode)),v=[];
   el.forEach(e=>{const s=entScore(it,m,e,ks);if(s>=1)v.push({s,w:+e.pekerja||0})});
   if(!v.length)return null;
   if(D.cfg.agg==='MIN'||ents.length===1)return Math.min(...v.map(x=>x.s));
@@ -176,14 +191,14 @@ function itemFinal(it,ents,ks,useOvr){
   return{ms,f,ov,comp:ov?1:vals.length/it.methods.length}}
 function calc(ents,ks,useOvr=true){
   const R={items:{},params:{},inds:{},total:0};
-  MASTER.items.forEach(it=>{if(it.iup&&!ents.some(e=>e.peran==='IUP'))return;R.items[it.code]=itemFinal(it,ents,ks,useOvr)});
+  MASTER.items.forEach(it=>{if(it.iup&&!ents.some(e=>e.peran==='IUP'))return;if(naItem(it,ents)&&!(useOvr&&ovrFor(it.code)))return;R.items[it.code]=itemFinal(it,ents,ks,useOvr)});
   let tw=0,tc=0,tn=0;
   Object.keys(MASTER.params).forEach(p=>{const its=MASTER.items.filter(i=>i.param===p&&R.items[i.code]);
     const sum=its.reduce((a,i)=>a+(R.items[i.code].f||0),0),n=its.length,w=MASTER.params[p].w,pct=n?sum/(5*n):0;
     const comp=n?its.reduce((a,i)=>a+R.items[i.code].comp,0)/n:0;
     R.params[p]={name:MASTER.params[p].name,w,n,sum,pct,cap:pct*w,gap:w-pct*w,cat:cat(pct,MASTER.th_item),comp}});
-  [1,2,3,4].forEach(i=>{const ps=Object.keys(R.params).filter(p=>p.startsWith(i+'.'));const cap=ps.reduce((a,p)=>a+R.params[p].cap,0),mx=ps.reduce((a,p)=>a+R.params[p].w,0);
-    const comp=ps.reduce((a,p)=>a+R.params[p].comp*R.params[p].n,0)/ps.reduce((a,p)=>a+R.params[p].n,0);
+  [1,2,3,4].forEach(i=>{const ps=Object.keys(R.params).filter(p=>p.startsWith(i+'.'));const act=ps.filter(p=>R.params[p].n>0),mx=ps.reduce((a,p)=>a+R.params[p].w,0),mxA=act.reduce((a,p)=>a+R.params[p].w,0),capA=act.reduce((a,p)=>a+R.params[p].cap,0),cap=mxA?capA/mxA*mx:0;
+    const nn=ps.reduce((a,p)=>a+R.params[p].n,0),comp=nn?ps.reduce((a,p)=>a+R.params[p].comp*R.params[p].n,0)/nn:1;
     R.inds[i]={name:MASTER.ind[i],cap,mx,pct:cap/mx,cat:cat(cap,MASTER.th_ind[i]),comp};R.total+=cap;tw+=mx;tc+=comp*mx});
   R.cat=cat(R.total,MASTER.th_tot);R.comp=tc/tw;return R}
 
@@ -229,7 +244,7 @@ function vHasil(){
   const perEnt=ents.map(e=>{const r=calc([e],ks);return{e,r}});
   $('#v').innerHTML=`<div class="grid"><div class="c hero"><div class="mu">Nilai total</div><div class="k">${R.total.toFixed(4)} ${chip(R.cat)}</div>${scaleBar(R.total)}</div>
    <div class="c"><div class="mu">Kelengkapan input</div><div class="k ${R.comp<1?'er':'ok'}">${(R.comp*100).toFixed(0)}%</div><div class="mu">${R.comp<1?'Skor yang belum diisi dihitung 0 — total belum final':'Lengkap'}</div></div>
-   <div class="c"><div class="mu">Aturan aktif</div><div>Cakupan: <b>${esc(scopeName())}</b><br>Antar-entitas: <b>${D.cfg.agg}</b><br>Skor akhir item: <b>${D.cfg.itemrule}</b><br>Entitas aktif: <b>${ents.length}</b></div></div></div>
+   <div class="c"><div class="mu">Aturan aktif</div><div>Cakupan: <b>${esc(scopeName())}</b><br>Antar-entitas: <b>${D.cfg.agg}</b><br>Skor akhir item: <b>${D.cfg.itemrule}</b><br>Entitas aktif: <b>${ents.length}</b>${(()=>{const n=MASTER.items.filter(it=>naItem(it,ents)).length;return n?`<br>Item N/A (dikeluarkan): <b>${n}</b>`:''})()}</div></div></div>
   <div class="c"><h2>Per indikator</h2><table><tr><th>No</th><th>Indikator</th><th class="n">Bobot</th><th class="n">Nilai capaian</th><th class="n">% terpenuhi</th><th>Tingkat</th></tr>
    ${[1,2,3,4].map(i=>`<tr><td>${i}</td><td>${esc(R.inds[i].name)}</td><td class="n">${R.inds[i].mx.toFixed(2)}</td><td class="n">${R.inds[i].cap.toFixed(4)}</td><td class="n" style="min-width:110px">${pbar(R.inds[i].pct)}</td><td>${chip(R.inds[i].cat)}</td></tr>`).join('')}</table></div>
   <div class="c"><h2>Per parameter (urut prioritas gap)</h2><div class="sc"><table><tr><th class="n">Prioritas</th><th>Parameter</th><th class="n">Item</th><th class="n">Bobot</th><th class="n">Σ skor</th><th class="n">%</th><th class="n">Nilai capaian</th><th class="n">Gap</th><th>Tingkat</th></tr>
@@ -237,27 +252,43 @@ function vHasil(){
   <div class="c"><h2>Per entitas <span class="mu">(indikatif — hanya dari skor entitas itu; nilai resmi = nilai total di atas)</span></h2><table><tr><th>Entitas</th><th>Peran</th><th class="n">Indeks</th><th>Tingkat</th><th class="n">Kelengkapan</th></tr>
    ${perEnt.map(({e,r})=>`<tr><td>${esc(e.nama)}</td><td>${esc(e.peran)}</td><td class="n">${r.total.toFixed(4)}</td><td>${chip(r.cat)}</td><td class="n">${(r.comp*100).toFixed(0)}%</td></tr>`).join('')}</table></div>`}
 
+function naBulk(){
+  const run=on=>{const en=$('#nae').value,ent=activeEnt().find(e=>e.kode===en),p=$('#nap').value;let n=0;
+    MASTER.items.filter(i=>i.param===p&&!(i.iup&&ent&&ent.peran!=='IUP')).forEach(i=>{const cur=naNow(i.code,en);
+      if(on&&!cur){setNA(i.code,en,true);n++}
+      if(!on&&cur){setNA(i.code,en,false);n++}});
+    vNilai();$('#nacard').open=true;$('#nae').value=en;$('#nap').value=p;$('#nam').textContent=`${n} item ${on?'ditandai N/A':'dikembalikan'} untuk ${en}. Klik Simpan skor.`;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'};
+  $('#nabtn').onclick=()=>run(true);$('#nabtx').onclick=()=>run(false)}
 function vNilai(){
   const ents=activeEnt(),ks=ksScores();
   const its=MASTER.items.filter(i=>i.methods.includes(METHOD)&&i.code.startsWith(INDF==='*'?'':INDF+'.'));
   $('#v').innerHTML=`<div class="c"><div class="row"><b>Metode</b><select id="mt">${METHODS.map(m=>`<option value="${m}" ${m===METHOD?'selected':''}>${m} — ${MNAME[m]}</option>`).join('')}</select>
    <b>Indikator</b><select id="ifl"><option value="*">Semua</option>${[1,2,3,4].map(i=>`<option value="${i}" ${INDF==i?'selected':''}>${i}. ${esc(MASTER.ind[i].slice(0,40))}</option>`).join('')}</select>
    <button id="sv">Simpan skor</button>${METHOD==='KS'?'':`<button class="s" id="nall">${NOTES_ALL?'Sembunyikan catatan':'Tampilkan semua catatan'}</button>`}<span id="sm" class="mu"></span></div>
-   ${METHOD==='KS'?'<div class="mu">Skor KS dihitung otomatis dari kuesioner (hanya baca).</div>':'<div class="mu">Pilih skor 1–5 per entitas sesuai rubrik. Kosong = belum dinilai. Item khusus IUP hanya diisi untuk entitas IUP.</div>'}</div>
+   ${METHOD==='KS'?'<div class="mu">Skor KS dihitung otomatis dari kuesioner (hanya baca).</div>':'<div class="mu">Pilih skor 1–5 per entitas sesuai rubrik. Kosong = belum dinilai. <b>N/A</b> = item tidak berlaku bagi entitas itu (mis. tidak terlibat desain tambang): dikeluarkan dari konsolidasi dan, bila N/A bagi semua entitas dalam cakupan, dari perhitungan nilai. Item khusus IUP hanya diisi untuk entitas IUP.</div>'}</div>
+   <details class="c" id="nacard"><summary><b>Tandai N/A massal</b> <span class="mu">— untuk kontraktor/vendor yang tidak terlibat pada satu parameter</span></summary>
+    <div class="row" style="margin-top:8px"><select id="nae">${ents.map(e=>`<option value="${esc(e.kode)}">${esc(e.kode)} — ${esc(e.nama)}</option>`).join('')}</select>
+    <select id="nap">${Object.keys(MASTER.params).map(p=>`<option value="${p}">${p} ${esc(MASTER.params[p].name.slice(0,60))} (${MASTER.items.filter(i=>i.param===p).length} item)</option>`).join('')}</select>
+    <button id="nabtn">Tandai N/A</button><button class="s" id="nabtx">Batalkan N/A</button><span id="nam" class="mu"></span></div>
+    <div class="mu">Berlaku untuk semua item pada parameter itu (item khusus IUP dilewati untuk non-IUP). Setelah ditandai, klik <b>Simpan skor</b>. N/A berlaku untuk semua metode.</div></details>
    <div class="c" style="padding:12px"><div class="sc tall"><table class="tn"><colgroup><col style="width:62px"><col>${ents.map(()=>'<col style="width:64px">').join('')}<col style="width:76px"><col style="width:62px"><col style="width:72px"></colgroup>
    <tr><th class="kd">Kode</th><th class="it">Item</th>${ents.map(e=>`<th class="n" title="${esc(e.nama)}">${esc(e.kode)}</th>`).join('')}<th class="n" title="Konsolidasi antar-entitas">Konsol.</th><th class="n" title="Catatan penilaian">Cat.</th><th class="n">Rubrik</th></tr>
    ${its.map(it=>{const cons=consolidate(it,METHOD,ents,ks);const nv=DIRTY['c:'+it.code+'|'+METHOD]??D.cat[it.code+'|'+METHOD]??'';return`<tr><td class="kd">${it.code}</td><td class="it">${esc(it.name)}${it.iup?' <span class="mu">(khusus IUP)</span>':''}</td>
     ${ents.map(e=>{const na=it.iup&&e.peran!=='IUP';if(na)return'<td class="dis"></td>';
-     if(METHOD==='KS')return`<td class="n">${ks[e.kode]?.[it.code]??''}</td>`;
+     const na1=naNow(it.code,e.kode),pn=profNA(e.kode).has(it.code);
+     if(METHOD==='KS')return`<td class="n ${na1?'nacell':''}">${na1?'N/A':(ks[e.kode]?.[it.code]??'')}</td>`;
      const k=`${it.code}|${METHOD}|${e.kode}`,v=k in DIRTY?DIRTY[k]:(D.skor[k]??'');
-     return`<td class="n"><select data-k="${k}"><option></option>${[1,2,3,4,5].map(n=>`<option ${v===n?'selected':''}>${n}</option>`).join('')}</select></td>`}).join('')}
-    <td class="n"><b>${cons==null?'':(+cons.toFixed(2))}</b></td>
+     return`<td class="n ${na1?'nacell':''}"><select data-k="${k}" title="${pn?'N/A otomatis menurut profil '+profOf(e)+'. Pilih skor bila item ini tetap dinilai untuk '+esc(e.kode):'Pilih N/A bila item ini tidak berlaku bagi '+esc(e.kode)}"><option></option>${[1,2,3,4,5].map(n=>`<option ${!na1&&v===n?'selected':''}>${n}</option>`).join('')}<option value="NA" ${na1?'selected':''}>N/A</option></select></td>`}).join('')}
+    <td class="n"><b>${naItem(it,ents)?'<span class="mu">N/A</span>':(cons==null?'':(+cons.toFixed(2)))}</b></td>
     <td class="n">${METHOD==='KS'?'':`<button class="s nb ${nv?'has':''}" data-n="${it.code}" title="${nv?esc(String(nv).slice(0,120)):'Tambah catatan'}">${nv?'✎':'+'}</button>`}</td>
     <td class="n"><button class="s" data-r="${it.code}">Lihat</button></td></tr>
     ${METHOD==='KS'?'':`<tr class="ntr" id="n-${it.code}" ${nv&&NOTES_ALL?'':'hidden'}><td></td><td colspan="${ents.length+4}"><div class="mu" style="font-size:.78rem;margin-bottom:3px">Catatan ${it.code}</div><textarea data-c="${it.code}|${METHOD}" rows="2" style="width:100%" placeholder="Tulis catatan / bukti penilaian…">${esc(nv)}</textarea></td></tr>`}
     <tr class="rub" id="r-${it.code}" hidden><td></td><td colspan="${ents.length+4}">${it.rubric.map((t,i)=>`<div><b>${i+1}.</b> ${esc(t)}</div>`).join('')}${it.tgt[METHOD]?`<div class="mu"><b>Target/bukti:</b> ${esc(it.tgt[METHOD])}</div>`:''}</td></tr>`}).join('')}</table></div></div>`;
   $('#mt').onchange=e=>{METHOD=e.target.value;vNilai()};$('#ifl').onchange=e=>{INDF=e.target.value;vNilai()};
-  document.querySelectorAll('select[data-k]').forEach(s=>s.onchange=()=>{DIRTY[s.dataset.k]=s.value===''?'':+s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
+  document.querySelectorAll('select[data-k]').forEach(s=>s.onchange=()=>{const[c,m,en]=s.dataset.k.split('|');
+    if(s.value==='NA')setNA(c,en,true);else{setNA(c,en,false);DIRTY[s.dataset.k]=s.value===''?'':+s.value}
+    s.closest('td').classList.toggle('nacell',s.value==='NA');$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan'});
+  const nb=$('#nabtn');if(nb)naBulk();
   document.querySelectorAll('[data-c]').forEach(s=>{s.oninput=()=>{DIRTY['c:'+s.dataset.c]=s.value;$('#sm').textContent=Object.keys(DIRTY).length+' perubahan belum disimpan';const b=document.querySelector(`[data-n="${s.dataset.c.split('|')[0]}"]`);if(b){b.classList.toggle('has',!!s.value.trim());b.textContent=s.value.trim()?'✎':'+'}}});
   document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{const r=document.getElementById('n-'+b.dataset.n);r.hidden=!r.hidden;if(!r.hidden)r.querySelector('textarea').focus()});
   const na=$('#nall');if(na)na.onclick=()=>{NOTES_ALL=!NOTES_ALL;document.querySelectorAll('.ntr').forEach(r=>{const t=r.querySelector('textarea');r.hidden=!(NOTES_ALL&&t.value.trim())});na.textContent=NOTES_ALL?'Sembunyikan catatan':'Tampilkan semua catatan'};
@@ -321,8 +352,10 @@ function tabelKs(){
 function vEnt(){
   const E=D.Entitas;
   $('#v').innerHTML=`<div class="c"><h2>Entitas</h2><div class="mu"><b>Grup dengan beberapa IUP:</b> tambahkan tiap IUP sebagai entitas berperan IUP. Pada kontraktor/vendor isi <b>Induk IUP</b> dengan kode IUP tempatnya bekerja (mis. <code>DP</code>, atau <code>DP,PE</code> bila satu penilaian berlaku untuk dua IUP). Kosongkan bila melayani semua IUP. Bila kontraktor sama punya PJO dan kondisi berbeda di tiap IUP, buat dua entitas (mis. AMM-DP dan AMM-PE) agar dinilai terpisah. Pemilih <b>Cakupan</b> di atas menentukan IUP mana yang dihitung.<br>Tambah/kurangi IUJP dan labor supply di sini. Entitas "Tidak" aktif tidak ikut perhitungan dan kuesioner. Perubahan diterapkan setelah Simpan.</div>
-   <div class="sc"><table id="et"><tr><th>Kode</th><th>Nama</th><th>Peran</th><th>Lingkup</th><th>Jml pekerja</th><th>Aktif</th><th>Induk IUP</th><th></th></tr>${E.map((e,i)=>entRow(e,i)).join('')}</table></div>
+   <div class="sc"><table id="et"><tr><th>Kode</th><th>Nama</th><th>Peran</th><th>Lingkup</th><th>Jml pekerja</th><th>Aktif</th><th>Induk IUP</th><th title="Menentukan item yang otomatis N/A">Profil relevansi</th><th></th></tr>${E.map((e,i)=>entRow(e,i)).join('')}</table></div>
    <div class="row"><button class="s" id="ad">+ Tambah entitas</button><button id="se">Simpan entitas</button><span id="em" class="mu"></span></div></div>
+   <div class="c"><h2>Profil relevansi vendor</h2><div class="mu">Profil <b>Produksi</b> dan <b>Labor Supply</b> otomatis memberi N/A pada item yang tidak berlaku bagi tipenya (usulan awal). Profil <b>Otomatis</b>: peran Labor Supply → Labor Supply; IUJP berlingkup produksi yang bukan kontraktor utama → Produksi; selain itu Penuh (semua item dinilai). Di menu Penilaian, memilih skor pada sel N/A berarti item itu tetap dinilai untuk entitas tersebut; sebaliknya sel mana pun bisa diubah menjadi N/A.</div>
+   ${Object.keys(PROFIL).map(k=>{const es=allEnt().filter(e=>profOf(e)===k).map(e=>e.kode);return`<details style="margin-top:8px"><summary><b>${k}</b> — ${PROFIL[k].na.length} item N/A${es.length?` · berlaku untuk: ${esc(es.join(', '))}`:' · belum dipakai entitas mana pun'}</summary><div class="mu">${esc(PROFIL[k].info)}</div><table><tr><th>Kode</th><th>Item</th><th>Alasan</th></tr>${PROFIL[k].na.map(([c,w])=>`<tr><td>${c}</td><td>${esc((MASTER.items.find(i=>i.code===c)||{}).name||'')}</td><td class="mu">${esc(w)}</td></tr>`).join('')}</table></details>`}).join('')}</div>
    <div class="c"><h2>Pengaturan</h2><div class="grid">
    ${sel('agg','Konsolidasi antar-entitas',['MIN','RATA-RATA TERBOBOT'])}${sel('itemrule','Skor akhir item dari beberapa metode',['MIN','RATA-RATA'])}${sel('ksround','Pembulatan skor kuesioner',['Pembulatan biasa','Dibulatkan ke bawah'])}
    ${inp('minresp','Minimal responden per kelompok')}${inp('moe','Margin of error Slovin (0.05 = 5%)')}${inp('perusahaan','Nama perusahaan')}${inp('periode','Periode penilaian')}</div>
@@ -331,14 +364,15 @@ function vEnt(){
    <select id="os"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><select id="ou"><option value="">Semua cakupan</option>${allEnt().filter(e=>e.peran==='IUP').map(e=>`<option value="${esc(e.kode)}">Hanya ${esc(e.kode)}</option>`).join('')}</select><input id="oa" placeholder="Alasan" size="40"><button id="oadd">Tambah/ubah</button></div>
    <table id="ot"><tr><th>Item</th><th>Berlaku untuk</th><th>Skor</th><th>Alasan</th><th></th></tr>${D.ovrAll.map((v,i)=>ovRow(v,i)).join('')}</table><div class="row"><button id="so">Simpan override</button><span id="om" class="mu"></span></div></div>`;
   const rd=()=>[...document.querySelectorAll('#et tr[data-i]')].map(tr=>({kode:tr.querySelector('[data-f=kode]').value.trim(),nama:tr.querySelector('[data-f=nama]').value,peran:tr.querySelector('[data-f=peran]').value,lingkup:tr.querySelector('[data-f=lingkup]').value,pekerja:+tr.querySelector('[data-f=pekerja]').value||0,aktif:tr.querySelector('[data-f=aktif]').value,induk:tr.querySelector('[data-f=induk]').value.trim()})).filter(r=>r.kode);
+  document.querySelectorAll('[data-pf]').forEach(s=>s.onchange=()=>{D.cfg['profil_'+s.dataset.pf]=s.value;$('#em').textContent='Profil diubah. Klik Simpan entitas.'});
   $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya',induk:''});vEnt()};
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{D.Entitas=rd();D.Entitas.splice(+b.dataset.x,1);vEnt()});
-  $('#se').onclick=async()=>{const rows=rd();if(new Set(rows.map(r=>r.kode)).size!==rows.length)return $('#em').textContent='Kode entitas harus unik';const r=await call({action:'saveEntitas',rows});$('#em').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Entitas=rows};
+  $('#se').onclick=async()=>{const rows=rd();if(new Set(rows.map(r=>r.kode)).size!==rows.length)return $('#em').textContent='Kode entitas harus unik';let r=await call({action:'saveEntitas',rows});if(r.ok){D.Entitas=rows;r=await cfgSave()}const em=$('#em');if(em)em.textContent=r.ok?'Tersimpan.':r.error};
   $('#sc2').onclick=async()=>{const rows=[];document.querySelectorAll('[data-cf]').forEach(i=>{D.cfg[i.dataset.cf]=i.value});const r=await cfgSave();$('#cm').textContent=r.ok?'Tersimpan.':r.error};
   $('#oadd').onclick=()=>{if(!$('#oa').value.trim())return $('#om').textContent='Alasan wajib diisi';{const it=$('#oi').value,u=$('#ou').value;D.ovrAll=D.ovrAll.filter(o=>!(o.item===it&&o.iup===u));D.ovrAll.push({item:it,skor:+$('#os').value,alasan:$('#oa').value,iup:u});vEnt()}};
   document.querySelectorAll('[data-ox]').forEach(b=>b.onclick=()=>{D.ovrAll.splice(+b.dataset.ox,1);vEnt()});
   $('#so').onclick=async()=>{$('#om').textContent='Menyimpan…';const r=await ovrSave();const e=$('#om');if(e)e.innerHTML=r.ok?'Tersimpan.':`<span class="er">${esc(r.error)}</span>`}}
-const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" size="7" value="${esc(e.kode)}"></td><td><input data-f="nama" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:90px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><input data-f="induk" size="9" placeholder="${e.peran==='IUP'?'(IUP)':'kode IUP, mis. DP,PE'}" value="${esc(e.induk||'')}" ${e.peran==='IUP'?'disabled':''}></td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
+const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" style="width:80px" value="${esc(e.kode)}"></td><td><input data-f="nama" style="width:135px" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" style="width:105px" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:62px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><input data-f="induk" style="width:82px" placeholder="${e.peran==='IUP'?'(IUP)':'kode IUP, mis. DP,PE'}" value="${esc(e.induk||'')}" ${e.peran==='IUP'?'disabled':''}></td><td>${e.peran==='IUP'?'<span class="mu">Penuh</span>':`<select data-pf="${esc(e.kode)}" style="width:188px"><option value="">Otomatis (${profAuto(e)})</option>${PROF_LIST.map(x=>`<option ${D.cfg['profil_'+e.kode]===x?'selected':''}>${x}</option>`).join('')}</select>`}</td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
 const ovRow=(v,i)=>`<tr><td>${esc(v.item)}</td><td>${v.iup?esc(v.iup):'Semua'}</td><td class="n">${v.skor}</td><td>${esc(v.alasan)}</td><td><button class="s" data-ox="${i}">Hapus</button></td></tr>`;
 const sel=(k,l,o)=>`<div><div class="mu">${l}</div><select data-cf="${k}">${o.map(x=>`<option ${D.cfg[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
 const inp=(k,l)=>`<div><div class="mu">${l}</div><input data-cf="${k}" value="${esc(D.cfg[k])}"></div>`;
