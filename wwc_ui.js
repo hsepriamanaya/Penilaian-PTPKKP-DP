@@ -2,8 +2,10 @@
    rekap otomatis per item/entitas, dan penerapan ke skor penilaian. Memakai global aplikasi: D, call, esc, $, MASTER, METHODS, MNAME, activeEnt, allEnt, DIRTY. */
 const W_CATS = ['Top Management', 'Middle Management', 'Employee'];
 const W_LEVELS = [...W_CATS, 'Khusus'];
+const wCats = () => W_CATS.filter(c => Object.entries(W_KS2CAT).some(([k, v]) => v === c && lvOn(k)));
 const W_LV_LABEL = { 'Top Management': 'Top Management', 'Middle Management': 'Middle Management', Employee: 'Employee (pengawas/pelaksana)', Khusus: 'Jabatan khusus' };
 const W_KS2CAT = { 'Top Management': 'Top Management', 'Top Management Site': 'Top Management', 'Middle Management': 'Middle Management', Pengawas: 'Employee', 'Non Staff': 'Employee' };
+let WNEWBUSY = false;
 let WM = 'WWC', WSEL = null, WFILT = true, WALL = false, WENT = '*', WNEW = false, WDIRTY = false;
 const WOPEN = {}, WNOTE = {};
 const wParse = s => { try { const o = JSON.parse(s); return o && typeof o === 'object' ? o : {} } catch (e) { return {} } };
@@ -37,7 +39,7 @@ function wScores(m, ents) {
 /* target narasumber per entitas × kategori: 10% dari target sampel Slovin tiap level (dibulatkan ke atas), dijumlah per kategori */
 function wTarget(ent) {
   const moe = +D.cfg.moe || .05, res = {}; W_CATS.forEach(c => res[c] = { pop: 0, tgt: 0 });
-  (D.Populasi || []).filter(p => p.entitas === ent).forEach(p => {
+  (D.Populasi || []).filter(p => p.entitas === ent && lvOn(p.level)).forEach(p => {
     const c = W_KS2CAT[p.level]; if (!c) return; const N = +p.populasi || 0; if (!N) return;
     res[c].pop += N; res[c].tgt += Math.ceil(Math.ceil(N / (1 + N * moe * moe)) / 10);
   });
@@ -53,12 +55,26 @@ async function wSave(r) {
   const x = await call(body); if (!x.ok) throw new Error(x.error || 'Gagal menyimpan'); return x;
 }
 
+let WSAVING = false;
+const wMsg = h => { const e = document.getElementById('wsm'); if (e) e.innerHTML = h };
+async function wSaveSheet(r) {
+  if (!r || WSAVING) return false;
+  WSAVING = true; SAVING++; WDIRTY = false;          /* edit yang terjadi selama menyimpan akan menyalakan WDIRTY lagi */
+  const b = document.getElementById('wsave'); if (b) b.disabled = true; wMsg('Menyimpan…'); sbar('Menyimpan lembar wawancara… jangan tutup halaman', '');
+  let ok = false;
+  try { await wSave(r); ok = true } catch (er) { WDIRTY = true; wMsg(`<span class="er">${esc(er.message)}</span>`); sbar('Gagal menyimpan lembar: ' + er.message + '. Data masih di layar; buka menu Wawancara & FGD lalu klik Simpan lembar.', 'er') }
+  WSAVING = false; SAVING--; const b2 = document.getElementById('wsave'); if (b2) b2.disabled = false;
+  if (ok) { sbar(WDIRTY ? 'Ada perubahan baru yang belum disimpan' : 'Lembar tersimpan', 'ok', WDIRTY ? 0 : 2500); if (!WDIRTY) { wMsg('<span class="ok">Tersimpan.</span>'); if (TAB === 'wwc' && document.getElementById('v')) vWwc() } else { wMsg('Ada perubahan belum disimpan'); if (TAB !== 'wwc') wAutoSave() } }
+  return ok;
+}
+function wAutoSave() { if (WDIRTY && WSEL && !WSAVING) { const r = (D.wwc || []).find(x => x.id === WSEL); if (r) wSaveSheet(r) } }
+
 function vWwc() {
   const ents = activeEnt(), entSel = WENT === '*' ? ents : ents.filter(e => e.kode === WENT), sc = wScores(WM, ents);
   const mn = WM === 'WWC' ? 'Wawancara' : 'FGD', unit = WM === 'WWC' ? 'narasumber' : 'peserta FGD';
   if (WSEL && !(D.wwc || []).some(r => r.id === WSEL)) WSEL = null;
   /* ringkasan */
-  let tT = 0, tR = 0; ents.forEach(e => { const t = wTarget(e.kode); W_CATS.forEach(c => { tT += t[c].tgt; tR += Math.min(wReal(WM, e.kode, c), t[c].tgt || wReal(WM, e.kode, c)) }) });
+  let tT = 0, tR = 0; ents.forEach(e => { const t = wTarget(e.kode); wCats().forEach(c => { tT += t[c].tgt; tR += Math.min(wReal(WM, e.kode, c), t[c].tgt || wReal(WM, e.kode, c)) }) });
   let itTot = 0, itOk = 0; ents.forEach(e => wItems(WM, e).forEach(it => { itTot++; if (sc[e.kode][it.code]) itOk++ }));
   const recs = wRecs(WM).filter(r => ents.some(e => e.kode === r.entitas) && (WENT === '*' || r.entitas === WENT)).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
   const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
@@ -72,8 +88,8 @@ function vWwc() {
    <div class="c"><div class="mu">Realisasi sampel ${unit}</div><div class="k ${tT && tR < tT ? 'er' : 'ok'}">${tT ? pct(tR, tT) + '%' : '—'}</div><div class="mu">${tT ? `${tR} dari target ${tT}` : 'Isi populasi di tab Kuesioner & Sampel untuk menghitung target'}</div></div>
    <div class="c"><div class="mu">Item sudah bernilai</div><div class="k ${itOk < itTot ? 'er' : 'ok'}">${pct(itOk, itTot)}%</div><div class="mu">${itOk} dari ${itTot} item-entitas</div></div></div>
   <div class="c"><h2>Target &amp; realisasi sampel</h2><div class="mu" style="margin-bottom:8px">Target = 10% dari sampel Slovin tiap level (dibulatkan ke atas), dijumlah per kategori: Top Management; Middle Management; Employee (pengawas + non staff).${WM === 'FGD' ? ' Realisasi FGD dihitung dari jumlah peserta.' : ''}</div>
-   <div class="sc"><table><tr><th>Entitas</th>${W_CATS.map(c => `<th class="n">${c}<br><span style="text-transform:none;font-weight:500">populasi · target · realisasi</span></th>`).join('')}<th class="n">Total</th></tr>
-   ${entSel.map(e => { const t = wTarget(e.kode); let a = 0, b = 0; return `<tr><td><b>${esc(e.kode)}</b> <span class="mu">${esc(e.peran)}</span></td>${W_CATS.map(c => { const r = wReal(WM, e.kode, c), g = t[c].tgt; a += r; b += g; const p = g ? Math.min(100, r / g * 100) : 0; return `<td class="n">${t[c].pop || '–'} · ${g || '–'} · <b class="${g && r < g ? 'er' : 'ok'}">${r}</b><div class="pb ${p >= 100 ? 'Proaktif' : p >= 50 ? 'Terencana' : 'Dasar'}"><i style="width:${p}%"></i></div></td>` }).join('')}<td class="n"><b>${a}</b> / ${b || '–'}</td></tr>` }).join('')}</table></div></div>
+   <div class="sc"><table><tr><th>Entitas</th>${wCats().map(c => `<th class="n">${c}<br><span style="text-transform:none;font-weight:500">populasi · target · realisasi</span></th>`).join('')}<th class="n">Total</th></tr>
+   ${entSel.map(e => { const t = wTarget(e.kode); let a = 0, b = 0; return `<tr><td><b>${esc(e.kode)}</b> <span class="mu">${esc(e.peran)}</span></td>${wCats().map(c => { const r = wReal(WM, e.kode, c), g = t[c].tgt; a += r; b += g; const p = g ? Math.min(100, r / g * 100) : 0; return `<td class="n">${t[c].pop || '–'} · ${g || '–'} · <b class="${g && r < g ? 'er' : 'ok'}">${r}</b><div class="pb ${p >= 100 ? 'Proaktif' : p >= 50 ? 'Terencana' : 'Dasar'}"><i style="width:${p}%"></i></div></td>` }).join('')}<td class="n"><b>${a}</b> / ${b || '–'}</td></tr>` }).join('')}</table></div></div>
   ${WNEW ? wFormHtml(ents) : ''}
   <div class="c"><h2>Daftar ${WM === 'WWC' ? 'narasumber' : 'kelompok FGD'}</h2>${recs.length ? `<div class="sc"><table><tr><th>Tanggal</th><th>Entitas</th><th>Level</th><th>${WM === 'WWC' ? 'Jabatan / nama' : 'Kelompok / topik'}</th>${WM === 'FGD' ? '<th class="n">Peserta</th>' : ''}<th class="n">Item terisi</th><th></th></tr>
    ${recs.map(r => { const [d, n] = wDone(r), p = n ? d / n * 100 : 0; return `<tr class="${r.id === WSEL ? 'wsel' : ''}"><td>${esc(String(r.tanggal).slice(0, 10))}</td><td>${esc(r.entitas)}</td><td>${esc(r.level)}</td><td>${esc(r.jabatan || '')}${r.nama ? ` <span class="mu">· ${esc(r.nama)}</span>` : ''}</td>${WM === 'FGD' ? `<td class="n">${r.peserta || 1}</td>` : ''}<td class="n" style="min-width:110px"><div class="pb ${p >= 100 ? 'Proaktif' : p > 0 ? 'Terencana' : 'Dasar'}"><i style="width:${p}%"></i></div>${d}/${n}</td><td class="n" style="white-space:nowrap"><button data-wopen="${r.id}">${r.id === WSEL ? 'Dibuka' : 'Nilai'}</button> <button class="s" data-wdel="${r.id}">Hapus</button></td></tr>` }).join('')}</table></div>` : `<div class="empty">Belum ada ${WM === 'WWC' ? 'narasumber' : 'kelompok FGD'} tercatat. Klik <b>+ Tambah</b> di atas untuk memulai.</div>`}</div>
@@ -88,7 +104,7 @@ function vWwc() {
 const wFormHtml = ents => `<div class="c hero"><h2>${WM === 'WWC' ? 'Narasumber baru' : 'Kelompok FGD baru'}</h2><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
   <div><div class="mu">Tanggal</div><input type="date" id="nf-tg" value="${wToday()}" style="width:100%"></div>
   <div><div class="mu">Entitas</div><select id="nf-en" style="width:100%">${ents.map(e => `<option value="${esc(e.kode)}" ${WENT === e.kode ? 'selected' : ''}>${esc(e.kode)} — ${esc(e.nama)}</option>`).join('')}</select></div>
-  <div><div class="mu">Level ${WM === 'WWC' ? 'narasumber' : 'kelompok'}</div><select id="nf-lv" style="width:100%">${W_LEVELS.map(l => `<option value="${l}">${W_LV_LABEL[l]}</option>`).join('')}</select></div>
+  <div><div class="mu">Level ${WM === 'WWC' ? 'narasumber' : 'kelompok'}</div><select id="nf-lv" style="width:100%">${[...wCats(), 'Khusus'].map(l => `<option value="${l}">${W_LV_LABEL[l]}</option>`).join('')}</select></div>
   <div><div class="mu">${WM === 'WWC' ? 'Jabatan' : 'Nama kelompok / topik'}</div><input id="nf-jb" style="width:100%" placeholder="${WM === 'WWC' ? 'mis. Dept Head Produksi' : 'mis. FGD Pengawas Produksi'}"></div>
   ${WM === 'WWC' ? '<div><div class="mu">Nama (opsional)</div><input id="nf-nm" style="width:100%"></div>' : '<div><div class="mu">Jumlah peserta</div><input type="number" min="1" id="nf-ps" value="6" style="width:100%"></div>'}</div>
   <div class="row"><button id="nf-ok">Simpan &amp; mulai menilai</button><button class="s" id="nf-no">Batal</button><span id="nf-m" class="mu"></span></div></div>`;
@@ -102,15 +118,17 @@ function wBind(ents, sc) {
     $('#nf-ok').onclick = async () => {
       const r = { id: wNewId(), metode: WM, entitas: $('#nf-en').value, level: $('#nf-lv').value, jabatan: $('#nf-jb').value.trim(), nama: WM === 'WWC' ? $('#nf-nm').value.trim() : '', tanggal: $('#nf-tg').value, peserta: WM === 'FGD' ? Math.max(1, +$('#nf-ps').value || 1) : 1, skor: {}, catatan: {} };
       if (!r.entitas || !r.tanggal) { $('#nf-m').innerHTML = '<span class="er">Tanggal dan entitas wajib diisi.</span>'; return }
-      $('#nf-m').textContent = 'Menyimpan…';
-      try { await wSave(r); (D.wwc = D.wwc || []).push(r); WSEL = r.id; WNEW = false; WDIRTY = false; vWwc(); document.getElementById('wsheet').scrollIntoView({ behavior: 'smooth' }) } catch (e) { $('#nf-m').innerHTML = `<span class="er">${esc(e.message)}</span>` }
+      if (WNEWBUSY) return; WNEWBUSY = true; $('#nf-ok').disabled = true; $('#nf-m').textContent = 'Menyimpan…'; SAVING++;
+      try { await wSave(r); (D.wwc = D.wwc || []).push(r); WSEL = r.id; WNEW = false; WDIRTY = false; if (TAB === 'wwc' && document.getElementById('v')) { vWwc(); const sh = document.getElementById('wsheet'); if (sh) sh.scrollIntoView({ behavior: 'smooth' }) } }
+      catch (e) { const m = document.getElementById('nf-m'); if (m) m.innerHTML = `<span class="er">${esc(e.message)}</span>`; sbar('Gagal menyimpan lembar baru: ' + e.message, 'er'); const ok2 = document.getElementById('nf-ok'); if (ok2) ok2.disabled = false }
+      finally { WNEWBUSY = false; SAVING-- }
     };
   }
   document.querySelectorAll('[data-wopen]').forEach(b => b.onclick = () => { if (WDIRTY && WSEL !== b.dataset.wopen && !confirm('Lembar yang dibuka belum disimpan. Buang perubahan?')) return; WSEL = b.dataset.wopen; WDIRTY = false; vWwc(); document.getElementById('wsheet').scrollIntoView({ behavior: 'smooth' }) });
   document.querySelectorAll('[data-wdel]').forEach(b => b.onclick = async () => {
     if (!confirm('Hapus lembar ini beserta seluruh skornya?')) return;
     const x = await call({ action: 'deleteWwc', id: b.dataset.wdel }); if (!x.ok) { alert(x.error); return }
-    D.wwc = D.wwc.filter(r => r.id !== b.dataset.wdel); if (WSEL === b.dataset.wdel) { WSEL = null; WDIRTY = false } vWwc();
+    D.wwc = D.wwc.filter(r => r.id !== b.dataset.wdel); if (WSEL === b.dataset.wdel) { WSEL = null; WDIRTY = false } if (TAB === 'wwc' && document.getElementById('v')) vWwc();
   });
   $('#wapply').onclick = () => wApply(ents, sc);
 }
@@ -134,7 +152,7 @@ function wSheet() {
   $('#wsheet').querySelectorAll('[data-wr]').forEach(b => b.onclick = () => { const k = b.dataset.wr; WOPEN[k] = !WOPEN[k]; wRefreshItem(r, k) });
   $('#wsheet').querySelectorAll('[data-wn]').forEach(b => b.onclick = () => { const k = b.dataset.wn; WNOTE[k] = !WNOTE[k]; wRefreshItem(r, k); const t = document.querySelector(`[data-wnt="${k}"]`); if (t) t.focus() });
   $('#wsheet').addEventListener('input', ev => { const t = ev.target; if (!t.dataset.wnt) return; r.catatan[t.dataset.wnt] = t.value; WDIRTY = true; $('#wsm').textContent = 'Ada perubahan belum disimpan'; const b = document.querySelector(`[data-wn="${t.dataset.wnt}"]`); if (b) { b.classList.toggle('has', !!t.value.trim()); b.textContent = t.value.trim() ? '✎' : '+' } });
-  $('#wsave').onclick = async () => { $('#wsm').textContent = 'Menyimpan…'; try { await wSave(r); WDIRTY = false; $('#wsm').innerHTML = '<span class="ok">Tersimpan.</span>'; vWwc() } catch (er) { $('#wsm').innerHTML = `<span class="er">${esc(er.message)}</span>` } };
+  $('#wsave').onclick = () => wSaveSheet(r);
 }
 function wRefreshItem(r, code) {
   const it = MASTER.items.find(i => i.code === code), el = document.getElementById('wi-' + code); if (!el) return;

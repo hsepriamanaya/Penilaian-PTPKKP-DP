@@ -98,15 +98,49 @@ const cat=(x,th)=>{x=Math.round(x*1e4)/1e4;for(let i=0;i<4;i++)if(x<th[i])return
 const chip=c=>`<span class="chip ${c}">${c}</span>`;
 let NOTES_ALL=false,KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1';
 let SCOPE='*',CUSTOM=[];try{SCOPE=sessionStorage.getItem('sml_scope')||'*';CUSTOM=JSON.parse(sessionStorage.getItem('sml_custom')||'[]')}catch(e){}
-const DEF={agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
+const LVALL=['Top Management','Top Management Site','Middle Management','Pengawas','Non Staff'];
+const lvOff=()=>String(D.cfg.lvloff||'').split(',').map(x=>x.trim()).filter(Boolean),lvOn=l=>!lvOff().includes(l),cfgRows=()=>Object.keys(D.cfg).map(k=>({kunci:k,nilai:D.cfg[k]}));
+const DEF={lvloff:'',agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
 
-async function call(body){try{const r=body?await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,key:KEY})}):await fetch(`${API_URL}?action=all&key=${encodeURIComponent(KEY)}`);return await r.json()}catch(e){return{ok:false,error:'Tidak dapat terhubung ke server'}}}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+/* Semua aksi simpan bersifat upsert/replace (idempoten) sehingga aman diulang. Diulang hingga 3x bila jaringan putus,
+   server membalas non-JSON (kuota/timeout Apps Script), atau server sedang dikunci auditor lain ("Lock"). 'arsipkan' tidak diulang. */
+async function call(body){
+  const tries=body&&body.action==='arsipkan'?1:3;
+  for(let i=0;i<tries;i++){
+    const last=i===tries-1,ct=new AbortController(),to=setTimeout(()=>ct.abort(),90000);
+    try{
+      const r=body?await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,key:KEY}),signal:ct.signal}):await fetch(`${API_URL}?action=all&key=${encodeURIComponent(KEY)}`,{signal:ct.signal});
+      const j=await r.json();clearTimeout(to);
+      if(j&&j.ok===false&&/lock|sedang sibuk|try again/i.test(j.error||'')&&!last){await sleep(1500*(i+1));continue}
+      return j}
+    catch(e){clearTimeout(to);if(last)return{ok:false,error:'Tidak dapat terhubung ke server (sudah dicoba '+tries+'x). Periksa koneksi lalu simpan lagi.'};await sleep(1200*(i+1))}}}
+const ovKey=o=>o.item+'|'+(o.iup||''),ovSnap=a=>{const m={};a.forEach(o=>m[ovKey(o)]=JSON.stringify([+o.skor,o.alasan||'']));return m};
 function prep(X){X.cfg={...DEF};X.Config.forEach(c=>X.cfg[c.kunci]=String(c.nilai));
   X.skor={};X.cat={};X.Skor.forEach(r=>{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.entitas==='_CAT')X.cat[`${r.item}|${r.metode}`]=r.catatan;else if(r.skor!=='')X.skor[k]=Number(r.skor)});
   X.wwc=(X.Wawancara||[]).map(r=>({...r,peserta:+r.peserta||1,skor:wParse(r.skor),catatan:wParse(r.catatan)}));X.ovrAll=X.Override.map(r=>({item:String(r.item),skor:Number(r.skor),alasan:r.alasan,iup:String(r.iup||'')}));
-  X.lap={};(X.Laporan||[]).forEach(r=>{try{(X.lap[r.iup]=X.lap[r.iup]||{})[r.kunci]=JSON.parse(r.nilai)}catch(e){}});return X}
+  X.lap={};(X.Laporan||[]).forEach(r=>{try{(X.lap[r.iup]=X.lap[r.iup]||{})[r.kunci]=JSON.parse(r.nilai)}catch(e){}});X.cfg0={...X.cfg};X.ovr0=ovSnap(X.ovrAll);return X}
 /* override: berlaku untuk semua cakupan (iup kosong) atau untuk satu IUP; cakupan IUP memakai override IUP-nya lebih dulu */
 const ovrFor=code=>{const sc=SCOPE.startsWith('iup:')?SCOPE.slice(4):'';const a=D.ovrAll.filter(o=>o.item===code);return a.find(o=>sc&&o.iup===sc)||a.find(o=>!o.iup)||null};
+let SAVING=0,SAVING_SC=false;
+const hasUnsaved=()=>Object.keys(DIRTY).length>0||SAVING>0||(typeof WDIRTY!=='undefined'&&WDIRTY)||(typeof DOK_DIRTY!=='undefined'&&DOK_DIRTY);
+/* Bilah status simpan yang tetap terlihat di semua menu, supaya tidak ada simpan yang berjalan/gagal tanpa diketahui */
+function savebar(){let b=document.getElementById('sbar');if(!b){b=document.createElement('div');b.id='sbar';b.style.cssText='position:fixed;right:16px;bottom:16px;z-index:99;max-width:360px;padding:10px 14px;border-radius:10px;font-size:.85rem;box-shadow:0 4px 18px rgba(0,0,0,.25);display:none;background:var(--c1,#fff);color:var(--tx,#111);border:1px solid var(--bd,#ccc)';document.body.appendChild(b)}return b}
+function sbar(msg,kind,ms){const b=savebar();clearTimeout(b._t);if(!msg){b.style.display='none';return}b.textContent=msg;b.style.display='block';b.style.borderColor=kind==='er'?'#dc2626':kind==='ok'?'#16a34a':'';b.style.color=kind==='er'?'#dc2626':'';if(ms)b._t=setTimeout(()=>sbar(''),ms)}
+const smSet=h=>{const e=$('#sm');if(e)e.innerHTML=h};
+/* Pengaturan: hanya kunci yang berubah yang dikirim dan digabung di server, sehingga dua auditor tidak saling menimpa. Code.gs lama → cadangan simpan penuh. */
+async function cfgSave(){
+  const b=D.cfg0||{},ch=Object.keys(D.cfg).filter(k=>String(D.cfg[k])!==String(b[k]??'')).map(k=>({kunci:k,nilai:D.cfg[k]}));
+  let r=ch.length?await call({action:'mergeConfig',rows:ch}):{ok:true};
+  if(!r.ok&&/tidak dikenal/i.test(r.error||''))r=await call({action:'saveConfig',rows:cfgRows()});
+  if(r.ok)D.cfg0={...D.cfg};return r}
+/* Override: kirim hanya baris yang ditambah/diubah dan yang dihapus (bukan seluruh tabel). */
+async function ovrSave(){
+  const b=D.ovr0||{},now=ovSnap(D.ovrAll),rows=D.ovrAll.filter(o=>b[ovKey(o)]!==now[ovKey(o)]).map(o=>({item:o.item,skor:o.skor,alasan:o.alasan,iup:o.iup||''}));
+  const del=Object.keys(b).filter(k=>!(k in now)).map(k=>{const i=k.indexOf('|');return{item:k.slice(0,i),iup:k.slice(i+1)}});
+  let r=rows.length||del.length?await call({action:'saveOverrideDiff',rows,del}):{ok:true};
+  if(!r.ok&&/tidak dikenal/i.test(r.error||''))r=await call({action:'saveOverride',rows:D.ovrAll.map(v=>({item:v.item,skor:v.skor,alasan:v.alasan,iup:v.iup}))});
+  if(r.ok)D.ovr0=now;return r}
 async function load(){const r=await call();if(!r.ok)return r;ROLE=r.role;D=prep(r.data);return r}
 const withData=(X,fn)=>{const o=D;D=X;try{return fn()}finally{D=o}};
 const dl=(n,t,m)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()};
@@ -124,7 +158,7 @@ const scopeName=()=>{if(SCOPE==='*')return'Seluruh grup';if(SCOPE==='custom')ret
 function ksScores(){ // {entitas: {item: skor}} dari rekap kuesioner
   const min=+D.cfg.minresp||1,res={};
   activeEnt().forEach(e=>{res[e.kode]={};KS_ITEMS_M.forEach(it=>{const sc=[];
-    D.KS_Rekap.filter(g=>g.entitas===e.kode&&it.levels.includes(g.level.toUpperCase())&&g.n>=min&&g.cnt[it.code]>0).forEach(g=>{const a=g.sum[it.code]/g.cnt[it.code];sc.push(D.cfg.ksround==='Dibulatkan ke bawah'?Math.floor(a):Math.round(a))});
+    D.KS_Rekap.filter(g=>g.entitas===e.kode&&it.levels.includes(g.level.toUpperCase())&&lvOn(g.level)&&g.n>=min&&g.cnt[it.code]>0).forEach(g=>{const a=g.sum[it.code]/g.cnt[it.code];sc.push(D.cfg.ksround==='Dibulatkan ke bawah'?Math.floor(a):Math.round(a))});
     if(sc.length)res[e.kode][it.code]=Math.min(...sc)})});return res}
 let KS_ITEMS_M=MASTER.items.filter(i=>i.methods.includes('KS'));
 function entScore(it,m,e,ks){return m==='KS'?ks[e.kode]?.[it.code]:D.skor[`${it.code}|${m}|${e.kode}`]}
@@ -177,13 +211,13 @@ function shell(){
   applyTheme();
   $('#sc').onchange=e=>{SCOPE=e.target.value;try{sessionStorage.setItem('sml_scope',SCOPE)}catch(x){}shell()};
   document.querySelectorAll('[data-cs]').forEach(c=>c.onchange=()=>{CUSTOM=[...document.querySelectorAll('[data-cs]:checked')].map(i=>i.dataset.cs);try{sessionStorage.setItem('sml_custom',JSON.stringify(CUSTOM))}catch(x){}shell()});
-  document.querySelectorAll('.side nav [data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;window.scrollTo(0,0);shell()});
+  document.querySelectorAll('.side nav [data-t]').forEach(b=>b.onclick=()=>{if(Object.keys(DIRTY).length)saveScores();if(typeof wAutoSave==='function')wAutoSave();TAB=b.dataset.t;window.scrollTo(0,0);shell()});
   const tg=o=>{$('#sd').classList.toggle('open',o);$('#scr').classList.toggle('open',o)};
   $('#hb').onclick=()=>tg(true);$('#scr').onclick=()=>tg(false);
   $('#th').onclick=()=>{THEME=THEMES[(THEMES.indexOf(THEME)+1)%3];try{localStorage.setItem('sml_theme',THEME)}catch(e){}applyTheme()};
   $('#lo').onclick=()=>logout();
   $('#cb').onclick=()=>{COLL=!COLL;try{localStorage.setItem('sml_coll',COLL?'1':'0')}catch(e){}$('#ap').classList.toggle('col',COLL)};
-  $('#rl').onclick=async()=>{if(Object.keys(DIRTY).length&&!confirm('Ada skor belum disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};await load();shell()};
+  $('#rl').onclick=async()=>{if(hasUnsaved()&&!confirm('Ada data yang belum tersimpan atau sedang disimpan. Muat ulang akan menghapusnya. Lanjut?'))return;DIRTY={};if(typeof WDIRTY!=='undefined')WDIRTY=false;await load();shell()};
   ({hasil:vHasil,nilai:vNilai,ks:vKs,wwc:vWwc,ent:vEnt,ekspor:vEkspor,arsip:vArsip,banding:vBanding,lap:vLaporan,dok:vDokumen})[TAB]()}
 const pbar=(p)=>{const c=cat(p,MASTER.th_item);return`<div class="pb ${c}"><i style="width:${Math.min(100,p*100).toFixed(0)}%"></i></div>${(p*100).toFixed(0)}%`};
 const scaleBar=v=>`<div class="scale"><i style="width:50%;background:#dc2626"></i><i style="width:20%;background:#ea580c"></i><i style="width:10%;background:#ca8a04"></i><i style="width:10%;background:#16a34a"></i><i style="width:10%;background:#2563eb"></i><u style="left:${Math.max(0,Math.min(100,v*100))}%"></u></div><div class="sl"><span style="left:0">0</span><span style="left:50%">0,5</span><span style="left:70%">0,7</span><span style="left:80%">0,8</span><span style="left:90%">0,9</span><span style="left:100%">1</span></div>`;
@@ -228,25 +262,40 @@ function vNilai(){
   document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{const r=document.getElementById('n-'+b.dataset.n);r.hidden=!r.hidden;if(!r.hidden)r.querySelector('textarea').focus()});
   const na=$('#nall');if(na)na.onclick=()=>{NOTES_ALL=!NOTES_ALL;document.querySelectorAll('.ntr').forEach(r=>{const t=r.querySelector('textarea');r.hidden=!(NOTES_ALL&&t.value.trim())});na.textContent=NOTES_ALL?'Sembunyikan catatan':'Tampilkan semua catatan'};
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const r=document.getElementById('r-'+b.dataset.r);r.hidden=!r.hidden});
-  $('#sv').onclick=saveScores}
+  $('#sv').onclick=saveScores;if(SAVING_SC){$('#sv').disabled=true;$('#sm').textContent='Menyimpan…'}}
 async function saveScores(){
-  const rows=Object.entries(DIRTY).map(([k,v])=>{if(k.startsWith('c:')){const[i,m]=k.slice(2).split('|');return{item:i,metode:m,entitas:'_CAT',skor:'',catatan:v}}const[i,m,e]=k.split('|');return{item:i,metode:m,entitas:e,skor:v,catatan:''}});
-  if(!rows.length)return;$('#sv').disabled=true;$('#sm').textContent='Menyimpan…';
-  for(let i=0;i<rows.length;i+=150){const r=await call({action:'saveScores',rows:rows.slice(i,i+150)});if(!r.ok){$('#sm').innerHTML=`<span class="er">${esc(r.error)}</span>`;$('#sv').disabled=false;return}}
-  rows.forEach(r=>{if(r.entitas==='_CAT')D.cat[`${r.item}|${r.metode}`]=r.catatan;else{const k=`${r.item}|${r.metode}|${r.entitas}`;if(r.skor==='')delete D.skor[k];else D.skor[k]=r.skor}});
-  DIRTY={};$('#sv').disabled=false;$('#sm').innerHTML='<span class="ok">Tersimpan.</span>'}
+  if(SAVING_SC)return;
+  const snap={...DIRTY},keys=Object.keys(snap);if(!keys.length)return;
+  const rows=keys.map(k=>{const v=snap[k];if(k.startsWith('c:')){const[i,m]=k.slice(2).split('|');return{item:i,metode:m,entitas:'_CAT',skor:'',catatan:v,_k:k}}const[i,m,e]=k.split('|');return{item:i,metode:m,entitas:e,skor:v,catatan:'',_k:k}});
+  SAVING_SC=true;SAVING++;const sv=$('#sv');if(sv)sv.disabled=true;smSet('Menyimpan…');sbar('Menyimpan penilaian… jangan tutup halaman','');
+  let fail='';
+  try{
+    for(let i=0;i<rows.length;i+=150){
+      const part=rows.slice(i,i+150),r=await call({action:'saveScores',rows:part.map(({_k,...x})=>x)});
+      if(!r.ok){fail=r.error||'Gagal menyimpan';break}
+      part.forEach(x=>{if(x.entitas==='_CAT')D.cat[`${x.item}|${x.metode}`]=x.catatan;else{const k=`${x.item}|${x.metode}|${x.entitas}`;if(x.skor==='')delete D.skor[k];else D.skor[k]=x.skor}
+        if(DIRTY[x._k]===snap[x._k])delete DIRTY[x._k]})}   /* edit yang dibuat SAAT menyimpan tetap tersisa & akan disimpan berikutnya */
+  }catch(e){fail=String(e.message||e)}
+  SAVING_SC=false;SAVING--;const left=Object.keys(DIRTY).length,sv2=$('#sv');if(sv2)sv2.disabled=false;
+  if(fail){smSet(`<span class="er">${esc(fail)}</span>`);sbar('Gagal menyimpan penilaian: '+fail+'. Data masih di layar; buka menu Penilaian lalu klik Simpan lagi.','er')}
+  else{smSet(left?left+' perubahan belum disimpan':'<span class="ok">Tersimpan.</span>');sbar(left?left+' perubahan baru belum disimpan':'Penilaian tersimpan','ok',left?0:2500);if(left&&TAB!=='nilai')saveScores()}}
 
+function lvCard(){const off=lvOff().map(x=>x.toUpperCase()),aff=KS_ITEMS_M.filter(i=>i.levels.length&&i.levels.every(l=>off.includes(l))).map(i=>i.code);
+  return`<div class="c"><h2>Level yang diikutkan dalam sampel</h2><div class="mu">Matikan level yang tidak dilibatkan, misalnya <b>Top Management</b> (direksi/HO) bila penilaian hanya sampai site. Level yang dimatikan hilang dari pilihan di kuesioner, dari target sampel, dari skor kuesioner, dan dari target narasumber WWC/FGD. Jawaban lama dari level itu tetap tersimpan tetapi tidak dihitung.</div>
+  <div class="row">${LVALL.map(l=>`<label><input type="checkbox" data-lv="${l}" ${lvOn(l)?'checked':''}> ${l}</label>`).join('')}<button id="lvs">Simpan</button><span id="lvm" class="mu"></span></div>
+  ${aff.length?`<div class="mu er">Item kuesioner yang seluruh levelnya dimatikan tidak terskor dari kuesioner: ${aff.join(', ')}. Nilai lewat metode lain atau override auditor.</div>`:''}</div>`}
 function vKs(){
   const ents=activeEnt(),sl=(N,e)=>Math.ceil(N/(1+N*e*e)),moe=+D.cfg.moe||.05;
   const pop={};D.Populasi.forEach(p=>pop[p.entitas+'|'+p.level]=+p.populasi||0);
-  const lv=['Top Management','Top Management Site','Middle Management','Pengawas','Non Staff'];
+  const lv=LVALL.filter(lvOn);
   const cnt={};D.KS_Rekap.forEach(g=>cnt[g.entitas+'|'+g.level]=g.n);
   let tg=0,tn=0,tw=0;
   const body=ents.map(e=>lv.map(l=>{const N=pop[e.kode+'|'+l]||0,t=N?sl(N,moe):0,n=cnt[e.kode+'|'+l]||0;tg+=t;tn+=Math.min(n,t||n);tw+=t?Math.ceil(t/10):0;
     return`<tr><td>${esc(e.kode)}</td><td>${l}</td><td class="n">${ROLE==='admin'?`<input type="number" min="0" style="width:80px" data-p="${e.kode}|${l}" value="${N}">`:N}</td><td class="n">${t}</td><td class="n">${n}</td><td class="n ${t&&n>=t?'ok':'er'}">${t?Math.round(n/t*100)+'%':'-'}</td><td class="n">${t?Math.ceil(t/10):'-'}</td></tr>`}).join('')).join('');
-  $('#v').innerHTML=`<div class="c"><h2>Rekap kuesioner (anonim)</h2><div class="mu">Sampel = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Saran narasumber WWC/FGD = 10% dari target sampel tiap kelompok (dibulatkan ke atas), mengikuti acuan lembar SAMPLING; angka ini dan sampel KS otomatis masuk ke tabel “Metode dan Sampel” di laporan Word. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
+  $('#v').innerHTML=`${ROLE==='admin'?lvCard():''}<div class="c"><h2>Rekap kuesioner (anonim)</h2><div class="mu">Sampel = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Saran narasumber WWC/FGD = 10% dari target sampel tiap kelompok (dibulatkan ke atas), mengikuti acuan lembar SAMPLING; angka ini dan sampel KS otomatis masuk ke tabel “Metode dan Sampel” di laporan Word. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
    ${ROLE==='admin'?'<div class="row"><button id="sp">Simpan populasi</button><span id="pm" class="mu"></span></div>':''}
    <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Target sampel</th><th class="n">Terkumpul</th><th class="n">%</th><th class="n">Saran narasumber WWC/FGD</th></tr>${body}<tr><th colspan="3">Total</th><th class="n">${tg}</th><th class="n">${tn}</th><th class="n">${tg?Math.round(tn/tg*100)+'%':'-'}</th><th class="n">${tw}</th></tr></table></div></div>${ROLE==='admin'?'<div class="c" id="pg"></div>':''}`;
+  if(ROLE==='admin')$('#lvs').onclick=async()=>{const prev=D.cfg.lvloff,offs=[...document.querySelectorAll('[data-lv]')].filter(c=>!c.checked).map(c=>c.dataset.lv);if(offs.length>=LVALL.length)return $('#lvm').textContent='Minimal satu level harus diikutkan.';D.cfg.lvloff=offs.join(',');$('#lvm').textContent='Menyimpan…';const r=await cfgSave();if(r.ok)vKs();else{D.cfg.lvloff=prev;$('#lvm').innerHTML=`<span class="er">${esc(r.error)}</span>`}};
   if(ROLE==='admin')pengisianUI();
   if(ROLE==='admin')$('#sp').onclick=async()=>{const rows=[];document.querySelectorAll('[data-p]').forEach(i=>{const[e,l]=i.dataset.p.split('|');if(+i.value)rows.push({entitas:e,level:l,populasi:+i.value})});
     const r=await call({action:'savePopulasi',rows});$('#pm').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Populasi=rows}}
@@ -285,10 +334,10 @@ function vEnt(){
   $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya',induk:''});vEnt()};
   document.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{D.Entitas=rd();D.Entitas.splice(+b.dataset.x,1);vEnt()});
   $('#se').onclick=async()=>{const rows=rd();if(new Set(rows.map(r=>r.kode)).size!==rows.length)return $('#em').textContent='Kode entitas harus unik';const r=await call({action:'saveEntitas',rows});$('#em').textContent=r.ok?'Tersimpan.':r.error;if(r.ok)D.Entitas=rows};
-  $('#sc2').onclick=async()=>{const rows=[];document.querySelectorAll('[data-cf]').forEach(i=>{D.cfg[i.dataset.cf]=i.value;rows.push({kunci:i.dataset.cf,nilai:i.value})});const r=await call({action:'saveConfig',rows});$('#cm').textContent=r.ok?'Tersimpan.':r.error};
+  $('#sc2').onclick=async()=>{const rows=[];document.querySelectorAll('[data-cf]').forEach(i=>{D.cfg[i.dataset.cf]=i.value});const r=await cfgSave();$('#cm').textContent=r.ok?'Tersimpan.':r.error};
   $('#oadd').onclick=()=>{if(!$('#oa').value.trim())return $('#om').textContent='Alasan wajib diisi';{const it=$('#oi').value,u=$('#ou').value;D.ovrAll=D.ovrAll.filter(o=>!(o.item===it&&o.iup===u));D.ovrAll.push({item:it,skor:+$('#os').value,alasan:$('#oa').value,iup:u});vEnt()}};
   document.querySelectorAll('[data-ox]').forEach(b=>b.onclick=()=>{D.ovrAll.splice(+b.dataset.ox,1);vEnt()});
-  $('#so').onclick=async()=>{const rows=D.ovrAll.map(v=>({item:v.item,skor:v.skor,alasan:v.alasan,iup:v.iup}));const r=await call({action:'saveOverride',rows});$('#om').textContent=r.ok?'Tersimpan.':r.error}}
+  $('#so').onclick=async()=>{$('#om').textContent='Menyimpan…';const r=await ovrSave();const e=$('#om');if(e)e.innerHTML=r.ok?'Tersimpan.':`<span class="er">${esc(r.error)}</span>`}}
 const entRow=(e,i)=>`<tr data-i="${i}"><td><input data-f="kode" size="7" value="${esc(e.kode)}"></td><td><input data-f="nama" value="${esc(e.nama)}"></td><td><select data-f="peran">${['IUP','IUJP','Labor Supply','Vendor lain'].map(x=>`<option ${e.peran===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input data-f="lingkup" value="${esc(e.lingkup)}"></td><td><input data-f="pekerja" type="number" min="0" style="width:90px" value="${e.pekerja||0}"></td><td><select data-f="aktif"><option ${e.aktif==='Ya'?'selected':''}>Ya</option><option ${e.aktif!=='Ya'?'selected':''}>Tidak</option></select></td><td><input data-f="induk" size="9" placeholder="${e.peran==='IUP'?'(IUP)':'kode IUP, mis. DP,PE'}" value="${esc(e.induk||'')}" ${e.peran==='IUP'?'disabled':''}></td><td><button class="s" data-x="${i}">Hapus</button></td></tr>`;
 const ovRow=(v,i)=>`<tr><td>${esc(v.item)}</td><td>${v.iup?esc(v.iup):'Semua'}</td><td class="n">${v.skor}</td><td>${esc(v.alasan)}</td><td><button class="s" data-ox="${i}">Hapus</button></td></tr>`;
 const sel=(k,l,o)=>`<div><div class="mu">${l}</div><select data-cf="${k}">${o.map(x=>`<option ${D.cfg[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
@@ -378,13 +427,17 @@ function vEkspor(){
   $('#e2').onclick=()=>{const R=calc(activeEnt(),ksScores());const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
     dl('hasil_per_item_'+scopeName().replace(/[^A-Za-z0-9]+/g,'_')+'.csv','Kode,Item,Parameter,'+METHODS.join(',')+',Skor akhir,Override\n'+MASTER.items.filter(i=>R.items[i.code]).map(i=>{const x=R.items[i.code];return [i.code,q(i.name),i.param,...METHODS.map(m=>x.ms[m]==null?'':(+x.ms[m].toFixed(2))),x.f??'',x.ov?'ya':''].join(',')}).join('\n'),'text/csv')}}
 
+window.addEventListener('beforeunload',e=>{if(KEY&&hasUnsaved()){e.preventDefault();e.returnValue=''}});
+/* jaring pengaman terakhir: saat tab disembunyikan/ditutup, kirim perubahan skor yang tersisa dengan keepalive (idempoten) */
+const flushKeep=()=>{try{if(!KEY||!Object.keys(DIRTY).length)return;const rows=Object.entries(DIRTY).slice(0,250).map(([k,v])=>{if(k.startsWith('c:')){const[i,m]=k.slice(2).split('|');return{item:i,metode:m,entitas:'_CAT',skor:'',catatan:v}}const[i,m,e]=k.split('|');return{item:i,metode:m,entitas:e,skor:v,catatan:''}});fetch(API_URL,{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'saveScores',rows,key:KEY})}).catch(()=>{})}catch(e){}};
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&!SAVING_SC)flushKeep()});window.addEventListener('pagehide',()=>{if(!SAVING_SC)flushKeep()});
 function logout(auto){
-  if(!auto&&Object.keys(DIRTY).length&&!confirm('Ada skor yang belum disimpan. Keluar akan menghapusnya. Lanjut?'))return;
+  if(!auto&&hasUnsaved()&&!confirm('Ada data yang belum tersimpan atau sedang disimpan. Keluar akan menghapusnya. Lanjut?'))return;
   KEY='';ROLE='';D=null;DIRTY={};KSL=null;BANDING='';TAB='hasil';
   try{sessionStorage.removeItem('sml_key')}catch(e){}
   login(auto?'Sesi berakhir karena tidak ada aktivitas. Masuk kembali.':'')}
 /* keluar otomatis setelah 30 menit tanpa aktivitas (aman bila komputer ditinggal) */
-let _idle;const _rst=()=>{clearTimeout(_idle);if(KEY)_idle=setTimeout(()=>{if(KEY&&!Object.keys(DIRTY).length)logout(true);else _rst()},30*60*1000)};
+let _idle;const _rst=()=>{clearTimeout(_idle);if(KEY)_idle=setTimeout(()=>{if(KEY&&!hasUnsaved())logout(true);else _rst()},30*60*1000)};
 ['click','keydown','mousemove','touchstart'].forEach(ev=>document.addEventListener(ev,_rst,{passive:true}));
 function login(msg=''){
   $('#app').innerHTML=`<div class="lg"><div class="lc"><div class="mk">${MARK}</div><h2>SML · PTPKKP</h2><div class="mu" style="margin:4px 0 16px">Aplikasi penilaian tingkat pencapaian kinerja keselamatan pertambangan. Masukkan kunci akses dari koordinator (auditor = kunci admin, KTT/manajemen = kunci baca).</div><input id="k" type="password" placeholder="Kunci akses" autocomplete="current-password"><button id="go">Masuk</button><div class="er" style="margin-top:10px;min-height:1.2em">${esc(msg)}</div><div style="margin-top:12px"><a href="index.html">← Kembali ke beranda</a></div></div></div>`;

@@ -52,7 +52,7 @@ function laporanCtx(iup) {
     const programs = (L.program || []).filter(x => x.prog && x.par).map(x => ({ ind: +String(x.par)[0], par: MASTER.params[x.par] ? `${x.par} ${MASTER.params[x.par].name}` : x.par, prog: x.prog, item: x.item || '', ent: x.ent || '', pic: x.pic || '', tgt: x.tgt || '', tn: x.tn === '' || x.tn == null ? null : +x.tn, st: x.st || '' }));
     const temuan = {}; for (let i = 1; i <= 4; i++) temuan[i] = String((L.temuan || {})[i] || '').trim();
     const moe = +D.cfg.moe || .05, slv = N => Math.ceil(N / (1 + N * moe * moe)), pop = {}; (D.Populasi || []).forEach(p => pop[p.entitas + '|' + p.level] = +p.populasi || 0);
-    const LV = ['Top Management', 'Top Management Site', 'Middle Management', 'Pengawas', 'Non Staff'], cn = {}; (D.KS_Rekap || []).forEach(g => cn[g.entitas] = (cn[g.entitas] || 0) + g.n);
+    const LV = LVALL.filter(lvOn), cn = {}; (D.KS_Rekap || []).forEach(g => cn[g.entitas] = (cn[g.entitas] || 0) + g.n);
     let sN = 0, sT = 0, sA = 0, sW = 0; const per = [];
     ents.forEach(e => { let t = 0, w = 0; LV.forEach(l => { const N = pop[e.kode + '|' + l] || 0; sN += N; if (N) { const x = slv(N); t += x; w += Math.ceil(x / 10) } }); sT += t; sW += w; sA += cn[e.kode] || 0; if (t) per.push(`${e.kode} ${w}`) });
     const samp = {}; if (sT) { samp.KS = `Jumlah responden terkumpul ${sA} dari target ${sT} (rumus Slovin, margin of error ${Math.round(moe * 100)}%, populasi ${sN} pekerja).`; samp.WWC = `Saran ${sW} narasumber (10% dari target sampel tiap level; rincian: ${per.join(', ')}).`; samp.FGD = `Peserta FGD dipilih dari narasumber yang sama; total saran WWC/FGD ${sW} orang.` }
@@ -80,13 +80,15 @@ async function dokUnduh() {
   } catch (e) { m.innerHTML = `<span class="er">${esc(e.message || e)}</span>` }
 }
 async function dokSimpan() {
-  const m = $('#dkm'); m.textContent = 'Menyimpan…';
+  if (window._dokBusy) return; window._dokBusy = true; SAVING++; DOK_DIRTY = false;   /* edit selama menyimpan akan menyalakan DOK_DIRTY lagi */
+  const m = $('#dkm') || { set innerHTML(v) {}, set textContent(v) {} }; m.textContent = 'Menyimpan…';
   try {
     const d = dokClone(DOK);
     for (const b of DOK.blocks) if (b.t === 'img' && b._dirty) { await bigPut(DOK_IUP, 'gbr_' + b.id, b.data || ''); b._dirty = false }
     d.blocks.forEach(b => { if (b.t === 'img') { delete b.data; delete b._dirty } });
-    await bigPut(DOK_IUP, 'dokumen', d); DOK_DIRTY = false; m.innerHTML = '<span class="ok">Tersimpan di server.</span>';
-  } catch (e) { m.innerHTML = `<span class="er">${esc(e.message || e)}</span>` }
+    await bigPut(DOK_IUP, 'dokumen', d); const m2 = $('#dkm'); if (m2) m2.innerHTML = '<span class="ok">Tersimpan di server.</span>';
+  } catch (e) { DOK_DIRTY = true; const m2 = $('#dkm'); if (m2) m2.innerHTML = `<span class="er">${esc(e.message || e)}</span>`; sbar('Gagal menyimpan dokumen laporan: ' + (e.message || e), 'er') }
+  finally { window._dokBusy = false; SAVING-- }
 }
 const fileToUrl = (f, max, type) => new Promise((ok, no) => {
   const fr = new FileReader(); fr.onerror = () => no(new Error('Berkas tidak terbaca')); fr.onload = () => {
