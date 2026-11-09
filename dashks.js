@@ -4,13 +4,16 @@
 const DEPT_DEFAULT=['Angkutan & Stasiun','Technical Service','Produksi','HSE','Plant & Maintenance','HRGA & Security','Land Acquisition, External Relation & CSR','Finance, Accounting & Budgeting','Supply Chain Management','Civil','Government Relations & Reporting','Lainnya'];
 const deptList=()=>{const c=String((D&&D.cfg&&D.cfg.deptlist)||'').split('|').map(x=>x.trim()).filter(Boolean);return c.length?c:DEPT_DEFAULT};
 const slv=(N,e)=>N>0?Math.ceil(N/(1+N*e*e)):0,moeV=()=>+D.cfg.moe||.05;
-let DK={ent:'*',me:null,T:null,P:null,dirty:false,busy:false,pd:new Set(),td:false};
+let DK={ent:'*',me:null,T:null,P:null,L:null,dirty:false,busy:false,pd:new Set(),td:false,ld:false,bd:false};
+/* Basis sampel tiap entitas: 'dept' (departemen × level) atau 'level'. Eksplisit lewat Config ksbasis_KODE; bila belum dipilih: 'dept' jika sudah ada populasi/target departemen, selain itu 'level'. */
+const ksBasisIn=(X,k)=>{const v=X.cfg&&X.cfg['ksbasis_'+k];if(v==='dept'||v==='level')return v;return(X.Populasi_Dept||[]).some(r=>r.entitas===k&&+r.populasi>0)||(X.Target_KS||[]).some(r=>r.entitas===k&&+r.target>0)?'dept':'level'};
+const ksBasis=k=>ksBasisIn(D,k);
 /* Populasi tabel silang (entitas x departemen x level) -> populasi per level diturunkan otomatis, sehingga target WWC/FGD, Slovin per level, dan laporan ikut terintegrasi */
 function derivePop(X){
-  X.PopManual=(X.Populasi||[]).map(r=>({...r}));const cr={};
+  X.PopManual=(X.PopManual||X.Populasi||[]).map(r=>({...r}));const cr={};
   (X.Populasi_Dept||[]).forEach(r=>{const n=+r.populasi||0;if(n>0){const c=cr[r.entitas]=cr[r.entitas]||{};c[r.level]=(c[r.level]||0)+n}});
-  X.CrossEnt=new Set(Object.keys(cr));
-  const rows=X.PopManual.filter(r=>!cr[r.entitas]);Object.keys(cr).forEach(e=>Object.keys(cr[e]).forEach(l=>rows.push({entitas:e,level:l,populasi:cr[e][l]})));
+  const ce=Object.keys(cr).filter(e=>ksBasisIn(X,e)==='dept');X.CrossEnt=new Set(ce);
+  const rows=X.PopManual.filter(r=>!X.CrossEnt.has(r.entitas));ce.forEach(e=>Object.keys(cr[e]).forEach(l=>rows.push({entitas:e,level:l,populasi:cr[e][l]})));
   X.Populasi=rows;return X}
 /* Akses populasi/target efektif dari peta populasi P ('ent|dept|level'->N) dan target manual T ('ent|dept'->n).
    Target efektif departemen = target manual bila diisi, selain itu Slovin atas populasi departemen. */
@@ -22,7 +25,7 @@ function mkEff(P,T){
   const hasX=e=>Object.keys(P).some(k=>P[k]>0&&k.startsWith(e+'|'));
   const eff=(e,d)=>{const m=T[e+'|'+d]||0;return m>0?m:slv(nd(e,d),moeV())};
   return{nd,eff,hasX,hasT:e=>Object.keys(T).some(k=>T[k]>0&&k.startsWith(e+'|')),depts:e=>[...(dep[e]||[])],lv}}
-function dkInit(){if(DK.dirty&&DK.T)return;DK.T={};DK.P={};(D.Target_KS||[]).forEach(r=>DK.T[r.entitas+'|'+r.departemen]=+r.target||0);(D.Populasi_Dept||[]).forEach(r=>{if(+r.populasi>0)DK.P[r.entitas+'|'+r.departemen+'|'+r.level]=+r.populasi});DK.pd=new Set();DK.td=false}
+function dkInit(){if(DK.dirty&&DK.T)return;DK.T={};DK.P={};DK.L={};(D.PopManual||[]).forEach(r=>{if(+r.populasi>0)DK.L[r.entitas+'|'+r.level]=+r.populasi});(D.Target_KS||[]).forEach(r=>DK.T[r.entitas+'|'+r.departemen]=+r.target||0);(D.Populasi_Dept||[]).forEach(r=>{if(+r.populasi>0)DK.P[r.entitas+'|'+r.departemen+'|'+r.level]=+r.populasi});DK.pd=new Set();DK.td=false;DK.ld=false;DK.bd=false}
 const dkMeta=ents=>{const s=new Set(ents.map(e=>e.kode));return(D.KS_Meta||[]).filter(m=>s.has(m.entitas)&&lvOn(m.level,m.entitas))};
 /* Kemajuan kuesioner untuk kartu Progres: (1) entitas dengan tabel silang atau target departemen -> target per departemen (manual atau Slovin departemen);
    (2) selain itu acuan Slovin per level. */
@@ -32,8 +35,8 @@ function ksProgress(ents){
   const P={},T={};(D.Populasi_Dept||[]).forEach(r=>{if(+r.populasi>0)P[r.entitas+'|'+r.departemen+'|'+r.level]=+r.populasi});(D.Target_KS||[]).forEach(r=>T[r.entitas+'|'+r.departemen]=+r.target||0);
   const A=mkEff(P,T),dn={};(D.KS_Meta||[]).forEach(m=>{if(!lvOn(m.level,m.entitas))return;const k=m.entitas+'|'+m.departemen;dn[k]=(dn[k]||0)+m.n});
   let Tt=0,N=0,dept=0,lvl=0;
-  ents.forEach(e=>{const ds=A.depts(e.kode).filter(d=>A.eff(e.kode,d)>0);
-    if(ds.length){dept++;ds.forEach(d=>{const t=A.eff(e.kode,d);Tt+=t;N+=Math.min(dn[e.kode+'|'+d]||0,t)})}
+  ents.forEach(e=>{const ds=ksBasis(e.kode)==='dept'?A.depts(e.kode).filter(d=>A.eff(e.kode,d)>0):[];
+    if(ksBasis(e.kode)==='dept'){dept++;ds.forEach(d=>{const t=A.eff(e.kode,d);Tt+=t;N+=Math.min(dn[e.kode+'|'+d]||0,t)})}
     else{lvl++;LVALL.filter(l=>lvOn(l,e.kode)).forEach(l=>{const P0=pop[e.kode+'|'+l]||0,t=P0?sl(P0,moe):0,n=cnt[e.kode+'|'+l]||0;Tt+=t;N+=t?Math.min(n,t):0})}});
   return{T:Tt,N,dept,lvl}}
 /* Alokasi target departemen ke level secara proporsional terhadap populasi sel (sisa pembulatan ke pecahan terbesar) */
@@ -67,7 +70,7 @@ function dkCsv(ents,depts){
   const M=dkMeta(ents),n={},A=mkEff(DK.P,DK.T);M.forEach(m=>{const k=m.entitas+'|'+m.departemen;n[k]=(n[k]||0)+m.n});
   const rows=[['Entitas','Departemen','Populasi','Target (manual atau Slovin)','Saran narasumber WWC/FGD','Terkumpul','Persen']];
   ents.forEach(e=>depts.forEach(d=>{const x=n[e.kode+'|'+d]||0,t=A.eff(e.kode,d),N=A.nd(e.kode,d);if(x||t||N)rows.push([e.kode,d,N||'',t||'',t?Math.ceil(t/10):'',x,t?Math.round(x/t*100)+'%':''])}));
-  ents.filter(e=>!depts.some(d=>A.eff(e.kode,d)>0)).forEach(e=>LVALL.filter(l=>lvOn(l,e.kode)).forEach(l=>{const P=(D.Populasi.find(p=>p.entitas===e.kode&&p.level===l)||{}).populasi||0,t=slv(+P,moeV()),x=M.filter(m=>m.entitas===e.kode&&m.level===l).reduce((a,m)=>a+m.n,0);if(x||t)rows.push([e.kode,'Level: '+l,P||'',t||'',t?Math.ceil(t/10):'',x,t?Math.round(x/t*100)+'%':''])}));
+  ents.filter(e=>ksBasis(e.kode)!=='dept').forEach(e=>LVALL.filter(l=>lvOn(l,e.kode)).forEach(l=>{const P=(D.Populasi.find(p=>p.entitas===e.kode&&p.level===l)||{}).populasi||0,t=slv(+P,moeV()),x=M.filter(m=>m.entitas===e.kode&&m.level===l).reduce((a,m)=>a+m.n,0);if(x||t)rows.push([e.kode,'Level: '+l,P||'',t||'',t?Math.ceil(t/10):'',x,t?Math.round(x/t*100)+'%':''])}));
   dl('rekap_kuesioner_per_departemen.csv','﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n'),'text/csv')}
 
 function vDks(){
@@ -95,61 +98,14 @@ function vDks(){
   </style><div class="dks">
   ${ok?'':'<div class="c er"><b>Code.gs belum diperbarui.</b> Tempel Code.gs terbaru di Apps Script lalu Deploy &gt; New version agar data dasbor tersedia.</div>'}
   <div class="row" style="margin:0 0 4px"><b>Entitas</b><select id="dke"><option value="*">Semua dalam cakupan (${all.length})</option>${all.map(e=>`<option value="${esc(e.kode)}" ${e.kode===DK.ent?'selected':''}>${esc(e.kode)} — ${esc(e.nama)}</option>`).join('')}</select>
-   <span class="mu">Hanya menampilkan data kuesioner yang masuk. Jawaban individual tidak ditampilkan; diperbarui otomatis tiap 60 detik <span id="dkt"></span></span><span class="sp"></span><button class="s" id="dkx">Unduh rekap (CSV)</button></div>
+   <span class="mu">Hanya menampilkan data kuesioner yang masuk. Jawaban individual tidak ditampilkan; diperbarui otomatis tiap 60 detik <span id="dkt"></span></span><span class="sp"></span><button class="s" id="dkx">Unduh rekap (CSV)</button>${admin?'<button class="s" id="dkgo">Atur populasi &amp; target →</button>':''}</div>
   <div id="dkp"></div>
-  ${admin?`<div class="c" id="dkm"></div>`:''}
   <div id="dkq"></div></div>`;
-  $('#dke').onchange=e=>{DK.ent=e.target.value;vDks()};$('#dkx').onclick=()=>dkCsv(ents,dkDepts(ents));
-  if(admin)dkEditor(all);
+  $('#dke').onchange=e=>{DK.ent=e.target.value;vDks()};$('#dkx').onclick=()=>dkCsv(ents,dkDepts(ents));if(admin)$('#dkgo').onclick=()=>{TAB='ksp';shell()};
   dkPaint(ents)}
 
 const dkDepts=ents=>{const base=deptList(),seen=new Set(base),extra=[];
   [...(D.KS_Meta||[]).map(m=>m.departemen),...Object.keys(DK.T||{}).map(k=>k.slice(k.indexOf('|')+1)),...Object.keys(DK.P||{}).map(k=>k.split('|')[1])].forEach(d=>{if(d&&!seen.has(d)){seen.add(d);extra.push(d)}});return base.concat(extra)};
-const dkCur=()=>{const all=activeEnt();return DK.ent==='*'?all:all.filter(e=>e.kode===DK.ent)};
-const dkMark=(e)=>{DK.dirty=true;if(e)DK.pd.add(e)};
-
-/* Editor (admin): populasi tabel silang departemen x level per entitas, target manual opsional, dan perhitungan Slovin + saran narasumber */
-function dkEditor(all){
-  const box=$('#dkm');if(!all.some(e=>e.kode===DK.me))DK.me=(DK.ent!=='*'&&all.some(e=>e.kode===DK.ent))?DK.ent:all[0]&&all[0].kode;
-  const en=DK.me,lvs=LVALL.filter(l=>lvOn(l,DK.me)),depts=dkDepts(all),pc=(e,d,l)=>DK.P[e+'|'+d+'|'+l]||'';
-  if(!en){box.innerHTML='<h2>Populasi dan target per departemen</h2><div class="mu">Belum ada entitas aktif.</div>';return}
-  box.innerHTML=`<h2>Populasi dan target per departemen × level</h2>
-  <div class="mu">Isi <b>jumlah pekerja</b> tiap departemen pada tiap level jabatan untuk satu entitas. Dari tabel silang ini otomatis dihitung: populasi tiap departemen dan tiap level, <b>sampel Slovin</b> (e = ${(moeV()*100).toFixed(0)}%), <b>saran narasumber WWC/FGD</b> (10% dari sampel, dibulatkan ke atas), dan alokasi target departemen ke level. Populasi per level yang diturunkan dari tabel ini otomatis dipakai menu Wawancara &amp; FGD, kartu Progres, dan laporan Word. Kolom <b>Target manual</b> opsional: bila diisi, menggantikan Slovin untuk departemen itu.<br><b>Entitas yang sampelnya hanya per level jabatan</b> (mis. kontraktor IUJP) tidak perlu mengisi tabel ini: cukup isi populasi per level di menu Kuesioner &amp; Sampel, targetnya otomatis Slovin per level dan tetap dihitung dalam capaian total.</div>
-  <div class="row"><b>Entitas</b><select id="dkme">${all.map(e=>`<option value="${esc(e.kode)}" ${e.kode===en?'selected':''}>${esc(e.kode)} — ${esc(e.nama)}</option>`).join('')}</select><span id="dkm3" class="mu"></span></div>
-  <div class="sc"><table class="dkh"><tr><th>Departemen</th>${lvs.map(l=>`<th class="n">${esc(l)}</th>`).join('')}<th class="n">Populasi (N)</th><th class="n">Sampel Slovin</th><th class="n">Target manual</th><th class="n">Target dipakai</th><th class="n">Saran WWC/FGD</th></tr>
-  ${depts.map(d=>`<tr><td>${esc(d)}</td>${lvs.map(l=>`<td class="n"><input type="number" min="0" step="1" style="width:64px" data-pp="${esc(en)}|${esc(d)}|${esc(l)}" value="${pc(en,d,l)}" aria-label="${esc(d)} ${esc(l)}"></td>`).join('')}
-   <td class="n"><b data-nd="${esc(d)}"></b></td><td class="n" data-sl="${esc(d)}"></td><td class="n"><input type="number" min="0" step="1" style="width:64px" data-dt="${esc(en)}|${esc(d)}" value="${DK.T[en+'|'+d]||''}" aria-label="Target manual ${esc(d)}"></td><td class="n"><b data-ef="${esc(d)}"></b></td><td class="n" data-ww="${esc(d)}"></td></tr>`).join('')}
-  <tr><th>Total populasi</th>${lvs.map(l=>`<th class="n" data-lt="${esc(l)}"></th>`).join('')}<th class="n" id="dkgN"></th><th class="n" id="dkgS"></th><th></th><th class="n" id="dkgE"></th><th class="n" id="dkgW"></th></tr>
-  <tr><td class="mu">Sampel Slovin per level (acuan)</td>${lvs.map(l=>`<td class="n mu" data-ls="${esc(l)}"></td>`).join('')}<td colspan="5"></td></tr></table></div>
-  <div class="row"><button id="dks">Simpan populasi &amp; target</button><button class="s" id="dkr">Batalkan perubahan</button><span id="dkm2" class="mu"></span></div>
-  <details style="margin-top:10px"><summary><b>Daftar departemen</b> <span class="mu">— juga menjadi pilihan di kuesioner</span></summary>
-   <div class="mu" style="margin:6px 0">Satu departemen per baris. Mengubah nama tidak mengubah jawaban yang sudah masuk; departemen lama tetap muncul di dasbor bila sudah punya jawaban, populasi, atau target.</div>
-   <textarea id="dkd" rows="9" style="width:min(520px,100%)">${esc(deptList().join('\n'))}</textarea>
-   <div class="row"><button class="s" id="dkds">Simpan daftar departemen</button><button class="g" id="dkdr">Kembalikan ke bawaan</button><span id="dkdm" class="mu"></span></div></details>`;
-  const redraw=()=>{dkEdCalc(en,depts,lvs);dkPaint(dkCur())};
-  box.querySelectorAll('[data-pp]').forEach(i=>i.oninput=()=>{const v=Math.max(0,Math.floor(+i.value||0));DK.P[i.dataset.pp]=v;dkMark(en);$('#dkm2').textContent='Belum disimpan';redraw()});
-  box.querySelectorAll('[data-dt]').forEach(i=>i.oninput=()=>{const v=Math.max(0,Math.floor(+i.value||0));DK.T[i.dataset.dt]=v;DK.td=true;dkMark(null);$('#dkm2').textContent='Belum disimpan';redraw()});
-  $('#dkme').onchange=e=>{DK.me=e.target.value;dkEditor(all)};
-  redraw();
-  $('#dkr').onclick=()=>{DK.dirty=false;DK.P=null;DK.T=null;dkInit();vDks()};
-  $('#dks').onclick=async()=>{if(DK.busy)return;DK.busy=true;SAVING++;$('#dks').disabled=true;$('#dkm2').textContent='Menyimpan…';
-    let r={ok:true};
-    try{for(const e of [...DK.pd]){const rows=Object.keys(DK.P).filter(k=>k.startsWith(e+'|')&&DK.P[k]>0).map(k=>{const a=k.split('|');return{departemen:a[1],level:a[2],populasi:DK.P[k]}});r=await call({action:'savePopDept',entitas:e,rows});if(!r.ok)break}
-      if(r.ok){const rows=Object.keys(DK.T).filter(k=>DK.T[k]>0).map(k=>{const i=k.indexOf('|');return{entitas:k.slice(0,i),departemen:k.slice(i+1),target:DK.T[k]}});r=await call({action:'saveTargetKs',rows});if(r.ok)D.Target_KS=rows}}
-    catch(e){r={ok:false,error:String(e)}}
-    DK.busy=false;SAVING--;const b=$('#dks');if(b)b.disabled=false;
-    if(r.ok){D.Populasi_Dept=Object.keys(DK.P).filter(k=>DK.P[k]>0).map(k=>{const a=k.split('|');return{entitas:a[0],departemen:a[1],level:a[2],populasi:DK.P[k]}});derivePop(D);DK.dirty=false;DK.pd=new Set();DK.td=false;const m=$('#dkm2');if(m)m.innerHTML='<span class="ok">Tersimpan.</span>'}
-    else{const m=$('#dkm2');if(m)m.innerHTML=`<span class="er">${esc(/tidak dikenal/i.test(r.error||'')?'Code.gs di server belum diperbarui (Deploy > New version).':r.error)}</span>`}};
-  const dsave=async list=>{const old=D.cfg.deptlist;D.cfg.deptlist=list.join('|');$('#dkdm').textContent='Menyimpan…';const r=await cfgSave();if(r.ok)vDks();else{D.cfg.deptlist=old;$('#dkdm').innerHTML=`<span class="er">${esc(r.error)}</span>`}};
-  $('#dkds').onclick=()=>{const l=[...new Set($('#dkd').value.split('\n').map(x=>x.replace(/\|/g,'/').trim()).filter(Boolean))];if(!l.length)return $('#dkdm').textContent='Isi minimal satu departemen.';dsave(l)};
-  $('#dkdr').onclick=()=>{if(confirm('Kembalikan daftar departemen ke bawaan?'))dsave([])}}
-function dkEdCalc(en,depts,lvs){
-  const A=mkEff(DK.P,DK.T),set=(sel,v)=>{const el=document.querySelector(sel);if(el)el.textContent=v===0||v==null?'':v};let gN=0,gS=0,gE=0,gW=0;const lt={};
-  depts.forEach(d=>{const N=A.nd(en,d),sl=slv(N,moeV()),ef=A.eff(en,d),q=CSS.escape(d);gN+=N;gS+=sl;gE+=ef;gW+=ef?Math.ceil(ef/10):0;
-    lvs.forEach(l=>lt[l]=(lt[l]||0)+(DK.P[en+'|'+d+'|'+l]||0));
-    set(`[data-nd="${q}"]`,N);set(`[data-sl="${q}"]`,sl);set(`[data-ef="${q}"]`,ef);set(`[data-ww="${q}"]`,ef?Math.ceil(ef/10):0)});
-  lvs.forEach(l=>{const q=CSS.escape(l);set(`[data-lt="${q}"]`,lt[l]||0);set(`[data-ls="${q}"]`,slv(lt[l]||0,moeV()))});
-  set('#dkgN',gN);set('#dkgS',gS);set('#dkgE',gE);set('#dkgW',gW)}
 /* Bagian dasbor yang dihitung ulang setiap kali populasi, target, atau data berubah */
 function dkPaint(ents){
   const box=$('#dkp'),qb=$('#dkq');if(!box||!qb)return;
@@ -157,7 +113,7 @@ function dkPaint(ents){
   const dn={},en={},dl2={};M.forEach(m=>{const k=m.entitas+'|'+m.departemen;dn[k]=(dn[k]||0)+m.n;en[m.entitas]=(en[m.entitas]||0)+m.n;const k2=m.entitas+'|'+m.departemen+'|'+m.level;dl2[k2]=(dl2[k2]||0)+m.n});
   const total=M.reduce((a,m)=>a+m.n,0);
   /* Dasar sampel per entitas: departemen (bila ada populasi/target departemen) atau level jabatan (Slovin per level) */
-  const dEnts=ents.filter(e=>depts.some(d=>A.eff(e.kode,d)>0)),lEnts=ents.filter(e=>!dEnts.includes(e)),popL={},lt={},ln={};
+  const dEnts=ents.filter(e=>ksBasis(e.kode)==='dept'),lEnts=ents.filter(e=>!dEnts.includes(e)),popL={},lt={},ln={};
   D.Populasi.forEach(p=>popL[p.entitas+'|'+p.level]=+p.populasi||0);
   M.forEach(m=>{const k=m.entitas+'|'+m.level;ln[k]=(ln[k]||0)+m.n});
   let TL=0,NL=0;lEnts.forEach(e=>lvs.forEach(l=>{const P=lvOn(l,e.kode)?popL[e.kode+'|'+l]||0:0,t=P?slv(P,moeV()):0;lt[e.kode+'|'+l]=t;TL+=t;NL+=t?Math.min(ln[e.kode+'|'+l]||0,t):0}));
@@ -177,19 +133,19 @@ function dkPaint(ents){
      return`<td class="n ${n||t?'':'z'}" style="background:color-mix(in srgb,var(--s1) ${Math.round(r*40)}%,transparent)" title="${esc(e.kode)} · ${esc(d)}: ${n}${t?' dari target '+t:''}">${n||t?n+(t?'/'+t+(n>=t?' ✓':''):''):'·'}</td>`}).join('')}<td class="n"><b>${drows.find(r=>r[0]===d)[1]}</b></td></tr>`).join('')}
    <tr><th>Total</th>${ents.map(e=>`<th class="n">${en[e.kode]||0}</th>`).join('')}<th class="n">${total}</th></tr></table></div><div class="mu" style="margin-top:6px">Sel berisi terkumpul/target. Warna makin pekat makin dekat ke target; ✓ = target tercapai; titik = belum ada.</div>`;
   /* alokasi target departemen ke level (hanya entitas yang punya tabel silang) */
-  const xe=ents.filter(e=>A.hasX(e.kode)),al={},ac={};
+  const xe=dEnts.filter(e=>A.hasX(e.kode)),al={},ac={};
   xe.forEach(e=>depts.forEach(d=>{const t=A.eff(e.kode,d);if(!t)return;const ns=lvs.map(l=>lvOn(l,e.kode)?DK.P[e.kode+'|'+d+'|'+l]||0:0),a=dkAlloc(t,ns);lvs.forEach((l,i)=>{al[d+'|'+l]=(al[d+'|'+l]||0)+a[i];ac[d+'|'+l]=(ac[d+'|'+l]||0)+Math.min(dl2[e.kode+'|'+d+'|'+l]||0,a[i])})}));
   const adep=depts.filter(d=>lvs.some(l=>al[d+'|'+l]));
-  const alok=!xe.length?'<div class="mu">Belum ada entitas dengan tabel populasi departemen × level. Isi tabel di bagian “Populasi dan target per departemen × level” (auditor) agar alokasi ke level muncul.</div>':
+  const alok=!xe.length?'<div class="mu">Belum ada entitas dengan tabel populasi departemen × level. Pilih basis “Departemen × level” dan isi tabelnya di tab Populasi & sampel agar alokasi ke level muncul.</div>':
    `<div class="mu" style="margin-bottom:6px">Target tiap departemen dipecah ke level jabatan sesuai proporsi populasi sel${xe.length<ents.length?` (entitas dengan tabel: ${xe.map(e=>esc(e.kode)).join(', ')})`:''}. Sel = terkumpul/alokasi; terkumpul dibatasi sampai alokasi.</div>
    <div class="sc"><table class="dkh"><tr><th>Departemen</th>${lvs.map(l=>`<th class="n">${esc(l)}</th>`).join('')}<th class="n">Total</th></tr>
    ${adep.map(d=>{let a=0,c=0;return`<tr><td>${esc(d)}</td>${lvs.map(l=>{const x=al[d+'|'+l]||0,y=ac[d+'|'+l]||0;a+=x;c+=y;return`<td class="n ${x?'':'z'}" ${x?`style="background:color-mix(in srgb,var(--s1) ${Math.round(Math.min(1,y/x)*40)}%,transparent)"`:''}>${x?y+'/'+x+(y>=x?' ✓':''):'·'}</td>`}).join('')}<td class="n"><b>${c}/${a}</b></td></tr>`}).join('')}</table></div>`;
-  const lvCard=lEnts.length?`<div class="c"><h2>Sampel per level jabatan <span class="mu" style="font-weight:400">— entitas tanpa target departemen</span></h2><div class="mu" style="margin-bottom:6px">Target = Slovin (e = ${(moeV()*100).toFixed(0)}%) atas populasi tiap level yang diisi di menu Kuesioner &amp; Sampel. Sel = terkumpul/target.</div>
+  const lvCard=lEnts.length?`<div class="c"><h2>Sampel per level jabatan <span class="mu" style="font-weight:400">— entitas tanpa target departemen</span></h2><div class="mu" style="margin-bottom:6px">Target = Slovin (e = ${(moeV()*100).toFixed(0)}%) atas populasi tiap level yang diisi di tab Populasi &amp; sampel. Sel = terkumpul/target.</div>
    <div class="sc"><table class="dkh"><tr><th>Entitas</th>${lvs.map(l=>`<th class="n">${esc(l)}</th>`).join('')}<th class="n">Total</th></tr>
    ${lEnts.map(e=>{let a=0,b=0;return`<tr><td title="${esc(e.nama)}">${esc(e.kode)}</td>${lvs.map(l=>{if(!lvOn(l,e.kode))return'<td class="n z" title="Level tidak diikutkan untuk entitas ini">—</td>';const t=lt[e.kode+'|'+l]||0,n=ln[e.kode+'|'+l]||0;a+=t?Math.min(n,t):0;b+=t;return`<td class="n ${n||t?'':'z'}" ${t?`style="background:color-mix(in srgb,var(--s1) ${Math.round(Math.min(1,n/t)*40)}%,transparent)"`:''} title="${esc(l)}: ${n}${t?' dari target '+t:' (populasi belum diisi)'}">${n||t?n+(t?'/'+t+(n>=t?' ✓':''):''):'·'}</td>`}).join('')}<td class="n"><b>${b?a+'/'+b:'—'}</b></td></tr>`}).join('')}</table></div></div>`:'';
   box.innerHTML=`<div class="grid" style="margin-top:12px">
    ${kpi('Responden masuk',total,ents.length>1?`${ew} dari ${ents.length} entitas sudah mengisi`:'entitas ini')}
-   ${kpi('Capaian target',T?pct(N,T)+'%':'—',T?`${N} dari target ${T} responden${lEnts.length&&dEnts.length?` (departemen ${ND}/${TD} · level ${NL}/${TL})`:''}${DK.dirty?' · belum disimpan':''}`:'Populasi/target belum diisi',T&&N<T?'er':T?'ok':'')}
+   ${kpi('Capaian target',T?pct(N,T)+'%':'—',T?`${N} dari target ${T} responden${lEnts.length&&dEnts.length?` (departemen ${ND}/${TD} · level ${NL}/${TL})`:''}${DK.dirty?' · belum disimpan':''}`:'Populasi/target belum diisi (tab Populasi &amp; sampel)',T&&N<T?'er':T?'ok':'')}
    ${kpi('Departemen tercapai',dT?`${dOk}<span class="mu" style="font-size:1rem"> / ${dT}</span>`:'—',dT?`${dT-dOk} departemen masih kurang · saran narasumber WWC/FGD ${saran}`:'belum ada target')}
    ${kpi('7 hari terakhir',w7,last?`pengisian terakhir ${dkDay(last)}${T&&w7?` · sisa ±${Math.ceil(sisa/Math.max(1,w7/7))} hari bila laju sama`:''}`:'belum ada pengisian')}</div>
    <div class="c"><h2>Responden per departemen</h2><div class="dkleg"><span class="a">Terkumpul</span><span class="b">Target (manual atau Slovin)</span></div>
@@ -206,7 +162,7 @@ function dkPaint(ents){
    <div class="dk3" style="margin-top:14px"><div class="c"><h2>Area kerja responden</h2><div class="mu" style="margin-bottom:6px">Responden boleh memilih lebih dari satu area, sehingga jumlah bisa melebihi total responden.</div>${ar.length?simple(ar.slice(0,12)):'<div class="mu">Belum ada data.</div>'}</div>
     ${adm?`<div class="c"><h2>Jabatan rinci (10 teratas)</h2>${jb.length?simple(jb):'<div class="mu">Belum ada data.</div>'}</div>`:''}</div>
    <div class="c"><h2>Matriks entitas × departemen</h2>${heat}</div>
-   <div class="c"><h2>Kecukupan data untuk skor</h2><div class="mu" style="margin-bottom:6px">Skor kuesioner per item hanya dihitung dari kelompok entitas × level yang minimal berisi <b>${minr}</b> responden (Pengaturan &gt; minimal responden per kelompok). Merah = belum dihitung.</div>
+   <div class="c"><h2>Kecukupan data untuk skor</h2><div class="mu" style="margin-bottom:6px">Skor kuesioner per item hanya dihitung dari kelompok entitas × level yang minimal berisi <b>${minr}</b> responden (tab Aturan &gt; minimal responden per kelompok). Merah = belum dihitung.</div>
     <div class="sc"><table class="dkh"><tr><th>Entitas</th>${lvs.map(l=>`<th class="n">${esc(l)}</th>`).join('')}</tr>${ents.map(e=>`<tr><td>${esc(e.kode)}</td>${lvs.map(l=>{if(!lvOn(l,e.kode))return'<td class="n z" title="Level tidak diikutkan untuk entitas ini">—</td>';const g=rk.find(x=>x.entitas===e.kode&&x.level===l),n=g?g.n:0;return`<td class="n ${n<minr?'er':'ok'}" title="${n<minr?'Belum cukup: tidak dihitung ke skor':'Dihitung ke skor'}">${n}</td>`}).join('')}</tr>`).join('')}</table></div></div>
    ${adm?`<div class="c"><h2>Rata-rata jawaban per item <span class="mu" style="font-weight:400">(skala 1–5, sementara)</span></h2><div class="mu" style="margin-bottom:6px">Rata-rata dari semua responden yang menjawab item tersebut pada entitas terpilih (menggabungkan level yang relevan). Hanya terlihat oleh auditor.</div>
     <div class="sc" style="max-height:420px"><table class="dkh"><tr><th>Item</th>${ents.map(e=>`<th class="n">${esc(e.kode)}</th>`).join('')}</tr>${avg.map(a=>`<tr><td title="${esc(a.it.name)}"><b>${esc(a.it.code)}</b> <span class="mu">${esc(String(a.it.name).slice(0,60))}</span></td>${a.cells.map(v=>`<td class="n ${v==null?'z':''}" ${v==null?'':`style="background:color-mix(in srgb,var(--s1) ${Math.round((v-1)/4*45)}%,transparent)"`}>${v==null?'·':v.toFixed(2)}</td>`).join('')}</tr>`).join('')}</table></div></div>`:''}`}
