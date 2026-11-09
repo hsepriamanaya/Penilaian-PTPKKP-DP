@@ -75,7 +75,7 @@ function intro() {
   const lvl = LEVEL_INFO.filter(x => cfg.levels.includes(x.l));
   el.innerHTML = `<div class="c">
   <label class="f">Perusahaan / Entitas *</label><select id="ent"><option value="">— pilih —</option>${cfg.entitas.map(e => `<option value="${e.kode}">${e.nama}</option>`).join('')}</select>
-  <label class="f">Departemen *</label><select id="dp"><option value="">— pilih —</option>${DEPARTEMEN.map(d => `<option>${d}</option>`).join('')}</select>
+  <label class="f">Departemen *</label><select id="dp"><option value="">— pilih —</option>${(cfg.departemen && cfg.departemen.length ? cfg.departemen : DEPARTEMEN).map(d => `<option>${d}</option>`).join('')}</select>
   <label class="f">Level jabatan * <span class="n">— pilih sesuai jabatan Anda saat ini</span></label>
   ${lvl.map(x => `<label class="lv"><input type="radio" name="lvl" value="${x.l}"><b>${x.l}</b><small>${x.d}</small></label>`).join('')}
   <label class="f">Jabatan rinci *</label><select id="jb"></select><div class="mu" id="jbi" style="margin-top:4px"></div>
