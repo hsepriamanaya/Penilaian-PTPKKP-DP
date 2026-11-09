@@ -101,7 +101,7 @@ const chip=c=>`<span class="chip ${c}">${c}</span>`;
 let NOTES_ALL=false,KEY='',ROLE='',D=null,TAB='hasil',DIRTY={},OVR_DIRTY={},METHOD='TD',INDF='1';
 let SCOPE='*',CUSTOM=[];try{SCOPE=sessionStorage.getItem('sml_scope')||'*';CUSTOM=JSON.parse(sessionStorage.getItem('sml_custom')||'[]')}catch(e){}
 const LVALL=['Top Management','Top Management Site','Middle Management','Pengawas','Non Staff'];
-const lvOff=()=>String(D.cfg.lvloff||'').split(',').map(x=>x.trim()).filter(Boolean),lvOn=l=>!lvOff().includes(l),cfgRows=()=>Object.keys(D.cfg).map(k=>({kunci:k,nilai:D.cfg[k]}));
+const lvOff=ent=>{const v=typeof ent==='string'?D.cfg['lvloff_'+ent]:undefined,s=(v===undefined||v==='*')?D.cfg.lvloff:(v==='-'?'':v);return String(s||'').split(',').map(x=>x.trim()).filter(Boolean)},lvOn=(l,ent)=>!lvOff(ent).includes(l),cfgRows=()=>Object.keys(D.cfg).map(k=>({kunci:k,nilai:D.cfg[k]}));
 const DEF={lvloff:'',agg:'MIN',itemrule:'MIN',ksround:'Pembulatan biasa',minresp:'1',moe:'0.05',perusahaan:'',periode:''};
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -160,7 +160,7 @@ const scopeName=()=>{if(SCOPE==='*')return'Seluruh grup';if(SCOPE==='custom')ret
 function ksScores(){ // {entitas: {item: skor}} dari rekap kuesioner
   const min=+D.cfg.minresp||1,res={};
   activeEnt().forEach(e=>{res[e.kode]={};KS_ITEMS_M.forEach(it=>{const sc=[];
-    D.KS_Rekap.filter(g=>g.entitas===e.kode&&it.levels.includes(g.level.toUpperCase())&&lvOn(g.level)&&g.n>=min&&g.cnt[it.code]>0).forEach(g=>{const a=g.sum[it.code]/g.cnt[it.code];sc.push(D.cfg.ksround==='Dibulatkan ke bawah'?Math.floor(a):Math.round(a))});
+    D.KS_Rekap.filter(g=>g.entitas===e.kode&&it.levels.includes(g.level.toUpperCase())&&lvOn(g.level,e.kode)&&g.n>=min&&g.cnt[it.code]>0).forEach(g=>{const a=g.sum[it.code]/g.cnt[it.code];sc.push(D.cfg.ksround==='Dibulatkan ke bawah'?Math.floor(a):Math.round(a))});
     if(sc.length)res[e.kode][it.code]=Math.min(...sc)})});return res}
 let KS_ITEMS_M=MASTER.items.filter(i=>i.methods.includes('KS'));
 /* N/A = item tidak berlaku bagi entitas (mis. kontraktor/vendor yang tidak terlibat desain tambang). Disimpan sebagai metode semu 'NA' bernilai 0;
@@ -340,22 +340,35 @@ function vProg(){
   <div class="c"><h2>Kelengkapan per parameter</h2><div class="sc"><table><tr><th>Param.</th><th>Nama</th><th class="n">Item</th><th style="width:220px">Kelengkapan</th></tr>
    ${Object.entries(R.params).map(([p,x])=>`<tr><td>${p}</td><td>${esc(x.name)}</td><td class="n">${x.n}</td><td>${bar(Math.round(x.comp*100))}<span class="mu">${Math.round(x.comp*100)}%</span></td></tr>`).join('')}</table></div></div>`}
 setInterval(()=>{if(KEY&&D&&TAB==='prog'&&!document.hidden&&!hasUnsaved()&&!window._pl){window._pl=1;load().then(r=>{window._pl=0;if(r.ok&&TAB==='prog'&&!hasUnsaved()){vProg();const e=$('#pgt');if(e)e.textContent='· '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}}).catch(()=>{window._pl=0})}},60000);
-function lvCard(){const off=lvOff().map(x=>x.toUpperCase()),aff=KS_ITEMS_M.filter(i=>i.levels.length&&i.levels.every(l=>off.includes(l))).map(i=>i.code);
-  return`<div class="c"><h2>Level yang diikutkan dalam sampel</h2><div class="mu">Matikan level yang tidak dilibatkan, misalnya <b>Top Management</b> (direksi/HO) bila penilaian hanya sampai site. Level yang dimatikan hilang dari pilihan di kuesioner, dari target sampel, dari skor kuesioner, dan dari target narasumber WWC/FGD. Jawaban lama dari level itu tetap tersimpan tetapi tidak dihitung.</div>
-  <div class="row">${LVALL.map(l=>`<label><input type="checkbox" data-lv="${l}" ${lvOn(l)?'checked':''}> ${l}</label>`).join('')}<button id="lvs">Simpan</button><span id="lvm" class="mu"></span></div>
-  ${aff.length?`<div class="mu er">Item kuesioner yang seluruh levelnya dimatikan tidak terskor dari kuesioner: ${aff.join(', ')}. Nilai lewat metode lain atau override auditor.</div>`:''}</div>`}
+/* Level yang diikutkan: pengaturan umum (lvloff) dan pengecualian per entitas (lvloff_KODE: '*' = ikut umum, '-' = semua level, selain itu daftar level yang dimatikan) */
+function lvCard(){
+  const ents=allEnt(),glob=lvOff().map(x=>x.toUpperCase());
+  const aff=e=>{const off=lvOff(e).map(x=>x.toUpperCase());return KS_ITEMS_M.filter(i=>i.levels.length&&i.levels.every(l=>off.includes(l))).map(i=>i.code)};
+  const own=e=>{const v=D.cfg['lvloff_'+e];return v!==undefined&&v!=='*'};
+  const cell=(k,l,on)=>`<td class="n"><input type="checkbox" data-lv="${esc(k)}|${l}" ${on?'checked':''} aria-label="${esc(k)} ${l}"></td>`;
+  return`<div class="c"><h2>Level yang diikutkan dalam sampel</h2><div class="mu">Hilangkan centang pada level yang <b>tidak dilibatkan</b>. Baris <b>Bawaan umum</b> berlaku untuk semua entitas; ubah centang pada baris sebuah entitas untuk menentukan pengecualian khusus entitas itu, misalnya kontraktor tanpa <b>Top Management</b> (direksi/HO). Level yang dimatikan hilang dari pilihan di kuesioner entitas tersebut, dari target sampel, skor kuesioner, dan target narasumber WWC/FGD-nya. Jawaban lama dari level itu tetap tersimpan tetapi tidak dihitung.</div>
+  <div class="sc" style="margin-top:8px"><table class="dkh"><tr><th>Entitas</th>${LVALL.map(l=>`<th class="n">${l}</th>`).join('')}<th>Status</th></tr>
+   <tr><td><b>Bawaan umum</b></td>${LVALL.map(l=>cell('*',l,lvOn(l))).join('')}<td class="mu">semua entitas yang tidak dikecualikan</td></tr>
+   ${ents.map(e=>`<tr><td title="${esc(e.nama)}">${esc(e.kode)}</td>${LVALL.map(l=>cell(e.kode,l,lvOn(l,e.kode))).join('')}<td class="mu">${own(e.kode)?'khusus':'ikut bawaan'}</td></tr>`).join('')}</table></div>
+  <div class="row"><button id="lvs">Simpan</button><span id="lvm" class="mu"></span></div>
+  ${ents.map(e=>({e,a:aff(e.kode)})).filter(x=>x.a.length).map(x=>`<div class="mu er">${esc(x.e.kode)}: item kuesioner yang seluruh levelnya dimatikan tidak terskor dari kuesioner (${x.a.join(', ')}). Nilai lewat metode lain atau override auditor.</div>`).join('')}</div>`}
 function vKs(){
   const ents=activeEnt(),sl=(N,e)=>Math.ceil(N/(1+N*e*e)),moe=+D.cfg.moe||.05;
   const pop={};D.Populasi.forEach(p=>pop[p.entitas+'|'+p.level]=+p.populasi||0);
-  const lv=LVALL.filter(lvOn);
   const cnt={};D.KS_Rekap.forEach(g=>cnt[g.entitas+'|'+g.level]=g.n);
   let tg=0,tn=0,tw=0;
-  const body=ents.map(e=>lv.map(l=>{const N=pop[e.kode+'|'+l]||0,t=N?sl(N,moe):0,n=cnt[e.kode+'|'+l]||0;tg+=t;tn+=Math.min(n,t||n);tw+=t?Math.ceil(t/10):0;
+  const body=ents.map(e=>LVALL.filter(l=>lvOn(l,e.kode)).map(l=>{const N=pop[e.kode+'|'+l]||0,t=N?sl(N,moe):0,n=cnt[e.kode+'|'+l]||0;tg+=t;tn+=Math.min(n,t||n);tw+=t?Math.ceil(t/10):0;
     return`<tr><td>${esc(e.kode)}</td><td>${l}</td><td class="n">${ROLE==='admin'&&!(D.CrossEnt&&D.CrossEnt.has(e.kode))?`<input type="number" min="0" style="width:80px" data-p="${e.kode}|${l}" value="${N}">`:N}${D.CrossEnt&&D.CrossEnt.has(e.kode)?' <span class="mu" title="Diturunkan dari tabel populasi departemen × level di Dasbor Kuesioner">⛓</span>':''}</td><td class="n">${t}</td><td class="n">${n}</td><td class="n">${t?Math.ceil(t/10):'-'}</td></tr>`}).join('')).join('');
   $('#v').innerHTML=`${ROLE==='admin'?lvCard():''}<div class="c"><h2>Populasi per level dan acuan sampel</h2><div class="mu">Untuk entitas yang sudah diisi <b>tabel populasi departemen × level</b> (menu Dasbor Kuesioner), populasi per level di sini <b>diturunkan otomatis</b> dari tabel itu (tanda ⛓, tidak bisa diubah di sini) dan target kuesioner mengikuti Slovin per departemen. Untuk entitas lain, tabel ini tetap menjadi dasar target kuesioner, saran narasumber WWC/FGD, dan tabel “Metode dan Sampel” di laporan. Acuan = N / (1 + N·e²), e = ${(moe*100).toFixed(0)}%. Saran narasumber WWC/FGD = 10% dari target sampel tiap kelompok (dibulatkan ke atas), mengikuti acuan lembar SAMPLING; angka ini dan sampel KS otomatis masuk ke tabel “Metode dan Sampel” di laporan Word. Jawaban individual tidak ditampilkan di aplikasi ini.</div>
    ${ROLE==='admin'?'<div class="row"><button id="sp">Simpan populasi</button><span id="pm" class="mu"></span></div>':''}
    <div class="sc"><table><tr><th>Entitas</th><th>Level</th><th class="n">Populasi (N)</th><th class="n">Acuan sampel (Slovin)</th><th class="n">Terkumpul</th><th class="n">Saran narasumber WWC/FGD</th></tr>${body}<tr><th colspan="3">Total</th><th class="n">${tg}</th><th class="n">${tn}</th><th class="n">${tw}</th></tr></table></div></div>${ROLE==='admin'?'<div class="c" id="pg"></div>':''}`;
-  if(ROLE==='admin')$('#lvs').onclick=async()=>{const prev=D.cfg.lvloff,offs=[...document.querySelectorAll('[data-lv]')].filter(c=>!c.checked).map(c=>c.dataset.lv);if(offs.length>=LVALL.length)return $('#lvm').textContent='Minimal satu level harus diikutkan.';D.cfg.lvloff=offs.join(',');$('#lvm').textContent='Menyimpan…';const r=await cfgSave();if(r.ok)vKs();else{D.cfg.lvloff=prev;$('#lvm').innerHTML=`<span class="er">${esc(r.error)}</span>`}};
+  if(ROLE==='admin')$('#lvs').onclick=async()=>{
+    const offOf=k=>LVALL.filter(l=>{const c=document.querySelector(`[data-lv="${CSS.escape(k+'|'+l)}"]`);return c&&!c.checked}),bad=['*',...allEnt().map(e=>e.kode)].find(k=>offOf(k).length>=LVALL.length);
+    if(bad)return $('#lvm').textContent=`Minimal satu level harus diikutkan (${bad==='*'?'bawaan umum':bad}).`;
+    const prev={...D.cfg},g=offOf('*'),same=x=>x.length===g.length&&x.every(l=>g.includes(l));
+    D.cfg.lvloff=g.join(',');
+    allEnt().forEach(e=>{const o=offOf(e.kode),k='lvloff_'+e.kode;if(same(o)){if(D.cfg[k]!==undefined)D.cfg[k]='*'}else D.cfg[k]=o.length?o.join(','):'-'});
+    $('#lvm').textContent='Menyimpan…';const r=await cfgSave();if(r.ok)vKs();else{D.cfg=prev;$('#lvm').innerHTML=`<span class="er">${esc(r.error)}</span>`}};
   if(ROLE==='admin')pengisianUI();
   if(ROLE==='admin')$('#sp').onclick=async()=>{const rows=[];document.querySelectorAll('[data-p]').forEach(i=>{const[e,l]=i.dataset.p.split('|');if(+i.value)rows.push({entitas:e,level:l,populasi:+i.value})});
     (D.PopManual||[]).filter(p=>D.CrossEnt&&D.CrossEnt.has(p.entitas)).forEach(p=>rows.push({entitas:p.entitas,level:p.level,populasi:p.populasi}));

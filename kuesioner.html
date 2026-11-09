@@ -72,12 +72,13 @@ function deskripsi() {
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function intro() {
   const el = $('#app');
-  const lvl = LEVEL_INFO.filter(x => cfg.levels.includes(x.l));
+  const lvlFor = ent => LEVEL_INFO.filter(x => ((cfg.levels_ent && cfg.levels_ent[ent]) || cfg.levels).includes(x.l));
+  let lvl = LEVEL_INFO.filter(x => cfg.levels.includes(x.l));
   el.innerHTML = `<div class="c">
   <label class="f">Perusahaan / Entitas *</label><select id="ent"><option value="">— pilih —</option>${cfg.entitas.map(e => `<option value="${e.kode}">${e.nama}</option>`).join('')}</select>
   <label class="f">Departemen *</label><select id="dp"><option value="">— pilih —</option>${(cfg.departemen && cfg.departemen.length ? cfg.departemen : DEPARTEMEN).map(d => `<option>${d}</option>`).join('')}</select>
   <label class="f">Level jabatan * <span class="n">— pilih sesuai jabatan Anda saat ini</span></label>
-  ${lvl.map(x => `<label class="lv"><input type="radio" name="lvl" value="${x.l}"><b>${x.l}</b><small>${x.d}</small></label>`).join('')}
+  <div id="lvbox"></div>
   <label class="f">Jabatan rinci *</label><select id="jb"></select><div class="mu" id="jbi" style="margin-top:4px"></div>
   <label class="f">Area kerja * <span class="n">(boleh lebih dari satu)</span></label>
   <div id="ar">${AREA.map(a => `<label class="ck"><input type="checkbox" value="${a}">${a}</label>`).join('')}</div>
@@ -89,8 +90,14 @@ function intro() {
       : lvl.map(x => `<optgroup label="${x.l}">${opt(x)}</optgroup>`).join(''));
     $('#jbi').textContent = lv ? 'Menampilkan jabatan level ' + lv + '.' : 'Pilih level di atas, atau pilih jabatan langsung (level akan terisi otomatis).';
   };
-  fillJb(null);
-  document.querySelectorAll('input[name=lvl]').forEach(r => r.onchange = () => fillJb(r.value));
+  const drawLv = () => {   // pilihan level mengikuti entitas yang dipilih (kontraktor bisa tidak mengikutkan level tertentu)
+    lvl = lvlFor($('#ent').value);
+    $('#lvbox').innerHTML = lvl.map(x => `<label class="lv"><input type="radio" name="lvl" value="${x.l}"><b>${x.l}</b><small>${x.d}</small></label>`).join('');
+    document.querySelectorAll('input[name=lvl]').forEach(r => r.onchange = () => fillJb(r.value));
+    fillJb(null);
+  };
+  $('#ent').onchange = drawLv;
+  drawLv();
   $('#jb').onchange = () => {   // memilih jabatan otomatis menetapkan level agar tidak salah pasangan
     const x = LEVEL_INFO.find(i => i.j.includes($('#jb').value)); if (!x) return;
     const radio = document.querySelector(`input[name=lvl][value="${x.l}"]`);

@@ -52,9 +52,9 @@ function laporanCtx(iup) {
     const programs = (L.program || []).filter(x => x.prog && x.par).map(x => ({ ind: +String(x.par)[0], par: MASTER.params[x.par] ? `${x.par} ${MASTER.params[x.par].name}` : x.par, prog: x.prog, item: x.item || '', ent: x.ent || '', pic: x.pic || '', tgt: x.tgt || '', tn: x.tn === '' || x.tn == null ? null : +x.tn, st: x.st || '' }));
     const temuan = {}; for (let i = 1; i <= 4; i++) temuan[i] = String((L.temuan || {})[i] || '').trim();
     const moe = +D.cfg.moe || .05, slv = N => Math.ceil(N / (1 + N * moe * moe)), pop = {}; (D.Populasi || []).forEach(p => pop[p.entitas + '|' + p.level] = +p.populasi || 0);
-    const LV = LVALL.filter(lvOn), cn = {}; (D.KS_Rekap || []).forEach(g => cn[g.entitas] = (cn[g.entitas] || 0) + g.n);
+    const cn = {}; (D.KS_Rekap || []).forEach(g => cn[g.entitas] = (cn[g.entitas] || 0) + g.n);
     let sN = 0, sT = 0, sA = 0, sW = 0; const per = [];
-    ents.forEach(e => { let t = 0, w = 0; LV.forEach(l => { const N = pop[e.kode + '|' + l] || 0; sN += N; if (N) { const x = slv(N); t += x; w += Math.ceil(x / 10) } }); sT += t; sW += w; sA += cn[e.kode] || 0; if (t) per.push(`${e.kode} ${w}`) });
+    ents.forEach(e => { let t = 0, w = 0; LVALL.filter(l => lvOn(l, e.kode)).forEach(l => { const N = pop[e.kode + '|' + l] || 0; sN += N; if (N) { const x = slv(N); t += x; w += Math.ceil(x / 10) } }); sT += t; sW += w; sA += cn[e.kode] || 0; if (t) per.push(`${e.kode} ${w}`) });
     const samp = {}; if (sT) { samp.KS = `Jumlah responden terkumpul ${sA} dari target ${sT} (rumus Slovin, margin of error ${Math.round(moe * 100)}%, populasi ${sN} pekerja).`; samp.WWC = `Saran ${sW} narasumber (10% dari target sampel tiap level; rincian: ${per.join(', ')}).`; samp.FGD = `Peserta FGD dipilih dari narasumber yang sama; total saran WWC/FGD ${sW} orang.` }
     return {
       samp, nama: iupE.nama || '', kode: iup, id: L.identitas || {}, ents: ents.map(e => ({ nama: e.nama, kode: e.kode, peran: e.peran, pekerja: e.pekerja })), agg: D.cfg.agg,

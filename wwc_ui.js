@@ -2,7 +2,7 @@
    rekap otomatis per item/entitas, dan penerapan ke skor penilaian. Memakai global aplikasi: D, call, esc, $, MASTER, METHODS, MNAME, activeEnt, allEnt, DIRTY. */
 const W_CATS = ['Top Management', 'Middle Management', 'Employee'];
 const W_LEVELS = [...W_CATS, 'Khusus'];
-const wCats = () => W_CATS.filter(c => Object.entries(W_KS2CAT).some(([k, v]) => v === c && lvOn(k)));
+const wCats = ent => W_CATS.filter(c => Object.entries(W_KS2CAT).some(([k, v]) => v === c && (ent ? lvOn(k, ent) : allEnt().some(e => lvOn(k, e.kode)))));
 const W_LV_LABEL = { 'Top Management': 'Top Management', 'Middle Management': 'Middle Management', Employee: 'Employee (pengawas/pelaksana)', Khusus: 'Jabatan khusus' };
 const W_KS2CAT = { 'Top Management': 'Top Management', 'Top Management Site': 'Top Management', 'Middle Management': 'Middle Management', Pengawas: 'Employee', 'Non Staff': 'Employee' };
 let WNEWBUSY = false;
@@ -39,7 +39,7 @@ function wScores(m, ents) {
 /* target narasumber per entitas × kategori: 10% dari target sampel Slovin tiap level (dibulatkan ke atas), dijumlah per kategori */
 function wTarget(ent) {
   const moe = +D.cfg.moe || .05, res = {}; W_CATS.forEach(c => res[c] = { pop: 0, tgt: 0 });
-  (D.Populasi || []).filter(p => p.entitas === ent && lvOn(p.level)).forEach(p => {
+  (D.Populasi || []).filter(p => p.entitas === ent && lvOn(p.level, ent)).forEach(p => {
     const c = W_KS2CAT[p.level]; if (!c) return; const N = +p.populasi || 0; if (!N) return;
     res[c].pop += N; res[c].tgt += Math.ceil(Math.ceil(N / (1 + N * moe * moe)) / 10);
   });
