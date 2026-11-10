@@ -90,6 +90,7 @@ tbody tr:nth-child(even)>td,table>tr:nth-child(even)>td{background:color-mix(in 
 <script src="relevansi.js"></script>
 <script src="dashks.js"></script>
 <script src="ks_setup.js"></script>
+<script src="vendor_ui.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="dokumen_default.js"></script>
 <script src="laporan_docx.js"></script>
@@ -160,7 +161,7 @@ function activeEnt(){const all=allEnt();
   if(SCOPE.startsWith('iup:')){const k=SCOPE.slice(4);return all.filter(e=>e.kode===k||(e.peran!=='IUP'&&(!indukList(e).length||indukList(e).includes(k))))}
   if(SCOPE==='custom'){const r=all.filter(e=>CUSTOM.includes(e.kode));return r.length?r:all}
   return all}
-const scopeName=()=>{if(SCOPE==='*')return'Seluruh grup';if(SCOPE==='custom')return'Pilihan manual';const e=D.Entitas.find(x=>x.kode===SCOPE.slice(4));return e?e.nama+' + kontraktor/vendornya':SCOPE}
+const scopeName=()=>{if(ROLE==='vendor')return(D.Entitas[0]||{}).nama||'';if(SCOPE==='*')return'Seluruh grup';if(SCOPE==='custom')return'Pilihan manual';const e=D.Entitas.find(x=>x.kode===SCOPE.slice(4));return e?e.nama+' + kontraktor/vendornya':SCOPE}
 function ksScores(){ // {entitas: {item: skor}} dari rekap kuesioner
   const min=+D.cfg.minresp||1,res={};
   activeEnt().forEach(e=>{res[e.kode]={};KS_ITEMS_M.forEach(it=>{const sc=[];
@@ -215,6 +216,7 @@ const GROUPS=[['Analisis',[{id:'hasil',l:'Hasil',v:[['hasil','Ringkasan'],['band
  ['Pengumpulan data',[{id:'nilai',l:'Penilaian',v:[['nilai','Penilaian per metode']]},{id:'wwc',l:'Wawancara & FGD',v:[['wwc','Wawancara & FGD']]},{id:'ks',l:'Kuesioner',v:[['dks','Dasbor'],['ksat','Aturan'],['ksp','Populasi & sampel'],['ksi','Pengisian']]}]],
  ['Pelaporan',[{id:'lap',l:'Laporan',v:[['lap','Data laporan'],['dok','Dokumen Word']]}]],
  ['Administrasi',[{id:'ent',l:'Pengaturan',v:[['ent','Entitas & vendor'],['atur','Penilaian & override'],['arsip','Periode & arsip'],['ekspor','Ekspor & cadangan']]}]]];
+const VEND_VIEWS=new Set(['hasil','prog','dks','ksp']);   // akun kontraktor: hanya baca, hanya data perusahaannya
 const ADMIN_ONLY=new Set(['nilai','wwc','lap','dok','ekspor','ent','atur','arsip','ksat','ksi']);
 const grpOf=v=>{for(const[,its]of GROUPS)for(const it of its)if(it.v.some(x=>x[0]===v))return it;return null};
 let SUBLAST={};
@@ -224,18 +226,19 @@ const THEMES=['auto','light','dark'];let THEME='auto',COLL=false;try{COLL=localS
 function applyTheme(){const r=document.documentElement;if(THEME==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',THEME);const b=document.getElementById('th');if(b)b.textContent={auto:'◐ Otomatis',light:'☀ Terang',dark:'☾ Gelap'}[THEME]}
 applyTheme();
 function shell(){
-  const admin=ROLE==='admin';
+  const admin=ROLE==='admin',vend=ROLE==='vendor';
   const iups=allEnt().filter(e=>e.peran==='IUP');
   if(SCOPE.startsWith('iup:')&&!iups.some(e=>'iup:'+e.kode===SCOPE))SCOPE='*';
-  if(!admin&&ADMIN_ONLY.has(TAB))TAB='hasil';
-  const grp=grpOf(TAB),ok=k=>admin||!ADMIN_ONLY.has(k);if(grp)SUBLAST[grp.id]=TAB;
+  const ok=k=>admin||(vend?VEND_VIEWS.has(k):!ADMIN_ONLY.has(k));
+  if(!ok(TAB))TAB='hasil';
+  const grp=grpOf(TAB);if(grp)SUBLAST[grp.id]=TAB;
   const nav=GROUPS.map(([g,items])=>{const its=items.map(it=>({...it,vs:it.v.filter(([k])=>ok(k))})).filter(it=>it.vs.length);return its.length?`<div class="ng"><h4>${g}</h4>${its.map(it=>{const go=SUBLAST[it.id]&&it.vs.some(x=>x[0]===SUBLAST[it.id])?SUBLAST[it.id]:it.vs[0][0];return`<button class="${grp&&grp.id===it.id?'on':''}" data-t="${go}" title="${it.l}">${ico(it.id)}<span>${it.l}</span></button>`}).join('')}</div>`:''}).join('');
   const tv=grp?grp.v.filter(([k])=>ok(k)):[],tabs=tv.length>1?`<div class="tabs" role="tablist">${tv.map(([k,l])=>`<button role="tab" aria-selected="${TAB===k}" class="${TAB===k?'on':''}" data-v="${k}">${l}</button>`).join('')}</div>`:'';
   const pg=PAGE[TAB]||['',''];
   $('#app').innerHTML=`<div class="app ${COLL?'col':''}" id="ap"><aside class="side" id="sd"><div class="brand"><div class="mk">${MARK}</div><div><b>SML · PTPKKP</b><small>Kepdirjen Minerba<br>No. 10.K/MB.01/DJB.T/2023</small></div></div><nav>${nav}</nav>
-   <div class="sf"><div class="co"><b>${esc(D.cfg.perusahaan||'Perusahaan belum diisi')}</b><small>${esc(D.cfg.periode||'Periode belum diisi')}</small></div><div class="usr"><span class="rl">${admin?'Auditor / Admin':'Pembaca'}</span><button class="g" id="lo" title="Keluar"><span>Keluar</span>${ico('out')}</button></div><button class="cb" id="cb" title="Ciutkan / lebarkan menu"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg><span>Ciutkan menu</span></button></div></aside><div class="scrim" id="scr"></div>
-   <div class="main"><header class="top"><button class="g hb" id="hb" aria-label="Menu">☰ Menu</button><div class="sw"><label for="sc">Cakupan</label><select id="sc"><option value="*" ${SCOPE==='*'?'selected':''}>Seluruh grup</option>${iups.map(e=>`<option value="iup:${esc(e.kode)}" ${SCOPE==='iup:'+e.kode?'selected':''}>${esc(e.nama)} + kontraktor/vendor</option>`).join('')}<option value="custom" ${SCOPE==='custom'?'selected':''}>Pilih manual…</option></select></div><span class="sp"></span><button class="g" id="th" title="Ganti tema"></button><button class="g" id="rl">↻ Muat ulang</button></header>
-   <main class="content"><div class="ph"><h1>${pg[0]}</h1><p>${pg[1]}</p>${tabs}</div>${SCOPE==='custom'?`<div class="c"><b>Entitas yang dihitung:</b> ${allEnt().map(e=>`<label style="margin-right:14px"><input type="checkbox" data-cs="${esc(e.kode)}" ${CUSTOM.includes(e.kode)?'checked':''}> ${esc(e.kode)}</label>`).join('')}</div>`:''}<div id="v"></div></main></div></div>`;
+   <div class="sf"><div class="co"><b>${esc(D.cfg.perusahaan||'Perusahaan belum diisi')}</b><small>${esc(D.cfg.periode||'Periode belum diisi')}</small></div><div class="usr"><span class="rl">${admin?'Auditor / Admin':vend?'Kontraktor · '+esc((D.Entitas[0]||{}).kode||''):'Pembaca'}</span><button class="g" id="lo" title="Keluar"><span>Keluar</span>${ico('out')}</button></div><button class="cb" id="cb" title="Ciutkan / lebarkan menu"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg><span>Ciutkan menu</span></button></div></aside><div class="scrim" id="scr"></div>
+   <div class="main"><header class="top"><button class="g hb" id="hb" aria-label="Menu">☰ Menu</button><div class="sw">${vend?`<label>Perusahaan</label><b>${esc((D.Entitas[0]||{}).nama||'')}</b>`:''}<label for="sc" ${vend?'hidden':''}>Cakupan</label><select id="sc" ${vend?'hidden':''}><option value="*" ${SCOPE==='*'?'selected':''}>Seluruh grup</option>${iups.map(e=>`<option value="iup:${esc(e.kode)}" ${SCOPE==='iup:'+e.kode?'selected':''}>${esc(e.nama)} + kontraktor/vendor</option>`).join('')}<option value="custom" ${SCOPE==='custom'?'selected':''}>Pilih manual…</option></select></div><span class="sp"></span><button class="g" id="th" title="Ganti tema"></button><button class="g" id="rl">↻ Muat ulang</button></header>
+   <main class="content"><div class="ph"><h1>${pg[0]}</h1><p>${pg[1]}</p>${vend?'<div class="mu" style="margin-top:6px">Mode kontraktor: hanya menampilkan data perusahaan Anda. Data bersifat sementara hingga penilaian selesai.</div>':''}${tabs}</div>${SCOPE==='custom'?`<div class="c"><b>Entitas yang dihitung:</b> ${allEnt().map(e=>`<label style="margin-right:14px"><input type="checkbox" data-cs="${esc(e.kode)}" ${CUSTOM.includes(e.kode)?'checked':''}> ${esc(e.kode)}</label>`).join('')}</div>`:''}<div id="v"></div></main></div></div>`;
   applyTheme();
   $('#sc').onchange=e=>{SCOPE=e.target.value;try{sessionStorage.setItem('sml_scope',SCOPE)}catch(x){}shell()};
   document.querySelectorAll('[data-cs]').forEach(c=>c.onchange=()=>{CUSTOM=[...document.querySelectorAll('[data-cs]:checked')].map(i=>i.dataset.cs);try{sessionStorage.setItem('sml_custom',JSON.stringify(CUSTOM))}catch(x){}shell()});
@@ -359,7 +362,8 @@ function vEnt(){
    <div class="sc"><table id="et"><tr><th>Kode</th><th>Nama</th><th>Peran</th><th>Lingkup</th><th>Jml pekerja</th><th>Aktif</th><th>Induk IUP</th><th title="Menentukan item yang otomatis N/A">Profil relevansi</th><th></th></tr>${E.map((e,i)=>entRow(e,i)).join('')}</table></div>
    <div class="row"><button class="s" id="ad">+ Tambah entitas</button><button id="se">Simpan entitas</button><span id="em" class="mu"></span></div></div>
    <div class="c"><h2>Profil relevansi vendor</h2><div class="mu">Profil <b>Produksi</b> dan <b>Labor Supply</b> otomatis memberi N/A pada item yang tidak berlaku bagi tipenya (usulan awal). Profil <b>Otomatis</b>: peran Labor Supply → Labor Supply; IUJP berlingkup produksi yang bukan kontraktor utama → Produksi; selain itu Penuh (semua item dinilai). Di menu Penilaian, memilih skor pada sel N/A berarti item itu tetap dinilai untuk entitas tersebut; sebaliknya sel mana pun bisa diubah menjadi N/A.</div>
-   ${Object.keys(PROFIL).map(k=>{const es=allEnt().filter(e=>profOf(e)===k).map(e=>e.kode);return`<details style="margin-top:8px"><summary><b>${k}</b> — ${PROFIL[k].na.length} item N/A${es.length?` · berlaku untuk: ${esc(es.join(', '))}`:' · belum dipakai entitas mana pun'}</summary><div class="mu">${esc(PROFIL[k].info)}</div><table><tr><th>Kode</th><th>Item</th><th>Alasan</th></tr>${PROFIL[k].na.map(([c,w])=>`<tr><td>${c}</td><td>${esc((MASTER.items.find(i=>i.code===c)||{}).name||'')}</td><td class="mu">${esc(w)}</td></tr>`).join('')}</table></details>`}).join('')}</div>`;
+   ${Object.keys(PROFIL).map(k=>{const es=allEnt().filter(e=>profOf(e)===k).map(e=>e.kode);return`<details style="margin-top:8px"><summary><b>${k}</b> — ${PROFIL[k].na.length} item N/A${es.length?` · berlaku untuk: ${esc(es.join(', '))}`:' · belum dipakai entitas mana pun'}</summary><div class="mu">${esc(PROFIL[k].info)}</div><table><tr><th>Kode</th><th>Item</th><th>Alasan</th></tr>${PROFIL[k].na.map(([c,w])=>`<tr><td>${c}</td><td>${esc((MASTER.items.find(i=>i.code===c)||{}).name||'')}</td><td class="mu">${esc(w)}</td></tr>`).join('')}</table></details>`}).join('')}</div>${ROLE==='admin'?vkCard():''}`;
+  if(ROLE==='admin')vkBind();
   const rd=()=>[...document.querySelectorAll('#et tr[data-i]')].map(tr=>({kode:tr.querySelector('[data-f=kode]').value.trim(),nama:tr.querySelector('[data-f=nama]').value,peran:tr.querySelector('[data-f=peran]').value,lingkup:tr.querySelector('[data-f=lingkup]').value,pekerja:+tr.querySelector('[data-f=pekerja]').value||0,aktif:tr.querySelector('[data-f=aktif]').value,induk:tr.querySelector('[data-f=induk]').value.trim()})).filter(r=>r.kode);
   document.querySelectorAll('[data-pf]').forEach(s=>s.onchange=()=>{D.cfg['profil_'+s.dataset.pf]=s.value;$('#em').textContent='Profil diubah. Klik Simpan entitas.'});
   $('#ad').onclick=()=>{D.Entitas=rd();D.Entitas.push({kode:'',nama:'',peran:'IUJP',lingkup:'',pekerja:0,aktif:'Ya',induk:''});vEnt()};
