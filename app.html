@@ -176,7 +176,15 @@ const naKey=(c,e)=>`${c}|NA|${e}`,entEl=(it,ents)=>it.iup?ents.filter(e=>e.peran
 const PROF_LIST=['Penuh','Produksi','Labor Supply'],PNA={},NOSET=new Set();Object.keys(PROFIL).forEach(k=>PNA[k]=new Set(PROFIL[k].na.map(x=>x[0])));
 const profAuto=e=>!e||e.peran==='IUP'?'Penuh':e.peran==='Labor Supply'?'Labor Supply':(e.peran==='IUJP'&&/produksi/i.test(e.lingkup||'')&&!/utama/i.test(e.lingkup||''))?'Produksi':'Penuh';
 const profOf=e=>{if(!e||e.peran==='IUP')return'Penuh';const v=D.cfg['profil_'+e.kode];return PROF_LIST.includes(v)?v:profAuto(e)};
-const profNA=kode=>{const e=D.Entitas.find(x=>x.kode===kode);return e?(PNA[profOf(e)]||NOSET):NOSET};
+/* Item kuesioner yang tidak mungkin dijawab di entitas ini karena seluruh level penanyanya dimatikan (Kuesioner › Aturan). Item khusus-KS seperti itu otomatis N/A; pada item multi-metode, bagian KS dikeluarkan dari metode yang diharapkan. */
+const ksAns=(it,kode)=>(it.levels||[]).some(L=>LVALL.some(l=>l.toUpperCase()===L&&lvOn(l,kode)));
+/* Narasumber WWC/FGD yang disyaratkan master (dari teks target per item): kategori Top Management / Middle Management / Employee. Bila teks juga memuat jabatan khusus (PJO, Section Head, dst.), tidak diputuskan otomatis. */
+const W_PAT=[['Top Management',/top\s*management/i],['Middle Management',/middle\s*management/i],['Employee',/employee/i]];
+const wNeed=(it,m)=>{const t=String((it.tgt||{})[m]||'');const c=W_PAT.filter(([,r])=>r.test(t)).map(x=>x[0]);const left=W_PAT.reduce((s,[,r])=>s.replace(new RegExp(r.source,'gi'),''),t).replace(/[-\s]/g,'');return left?[]:c};
+/* Apakah metode m masih mungkin dilakukan pada entitas ini? KS: level penanya aktif. WWC/FGD: kategori narasumber yang disyaratkan masih ada. Metode lain (TD, OBS, ANL, PJ) tidak bergantung level/sampel. */
+const methPoss=(it,m,kode)=>m==='KS'?ksAns(it,kode):(m==='WWC'||m==='FGD')?(()=>{const n=wNeed(it,m);return !n.length||n.some(c=>wCats(kode).includes(c))})():true;
+const _dead={};const ksDead=kode=>{const k=kode+'|'+D.cfg.lvloff+'|'+D.cfg['lvloff_'+kode];return _dead[k]||(_dead[k]=new Set(MASTER.items.filter(i=>i.methods.every(m=>!methPoss(i,m,kode))).map(i=>i.code)))};
+const profNA=kode=>{const e=D.Entitas.find(x=>x.kode===kode);const base=e?(PNA[profOf(e)]||NOSET):NOSET,dead=ksDead(kode);return dead.size?new Set([...base,...dead]):base};
 const isNA=(c,e)=>{const x=D.skor[naKey(c,e)];return x===0?true:x===1?false:profNA(e).has(c)};
 const naNow=(c,e)=>{const nk=naKey(c,e),x=nk in DIRTY?DIRTY[nk]:D.skor[nk];return x===0?true:x===1?false:profNA(e).has(c)};
 function setNA(c,e,on){const nk=naKey(c,e),prof=profNA(e).has(c),saved=D.skor[nk],want=on===prof?'':(on?0:1);
@@ -190,11 +198,12 @@ function consolidate(it,m,ents,ks){
   if(D.cfg.agg==='MIN'||ents.length===1)return Math.min(...v.map(x=>x.s));
   const sw=v.reduce((a,x)=>a+x.w,0);return sw?v.reduce((a,x)=>a+x.s*x.w,0)/sw:v.reduce((a,x)=>a+x.s,0)/v.length}
 function itemFinal(it,ents,ks,useOvr){
-  const ms={};it.methods.forEach(m=>ms[m]=consolidate(it,m,ents,ks));
+  const meth=it.methods.filter(m=>ents.some(e=>methPoss(it,m,e.kode)));
+  const ms={};meth.forEach(m=>ms[m]=consolidate(it,m,ents,ks));
   const vals=Object.values(ms).filter(x=>x!=null);let f=null,ov=false;
   const o=useOvr?ovrFor(it.code):null;if(o){f=o.skor;ov=true}
   else if(vals.length)f=D.cfg.itemrule==='MIN'?Math.min(...vals):Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
-  return{ms,f,ov,comp:ov?1:vals.length/it.methods.length}}
+  return{ms,f,ov,comp:ov?1:vals.length/Math.max(1,meth.length)}}
 function calc(ents,ks,useOvr=true){
   const R={items:{},params:{},inds:{},total:0};
   MASTER.items.forEach(it=>{if(it.iup&&!ents.some(e=>e.peran==='IUP'))return;if(naItem(it,ents)&&!(useOvr&&ovrFor(it.code)))return;R.items[it.code]=itemFinal(it,ents,ks,useOvr)});
@@ -335,7 +344,7 @@ function vProg(){
   const app=(it,e)=>!(it.iup&&e.peran!=='IUP')&&!isNA(it.code,e.kode);
   const done=(it,m,e)=>m==='KS'?(ks[e.kode]?.[it.code]>=1):(D.skor[`${it.code}|${m}|${e.kode}`]>=1||!!(sc[m]&&sc[m][e.kode]?.[it.code]));
   const rows=METHODS.map(m=>{const its=MASTER.items.filter(i=>i.methods.includes(m));let A=0,Dn=0;
-    const cells=ents.map(e=>{const a=its.filter(i=>app(i,e)),d=a.filter(i=>done(i,m,e)).length;A+=a.length;Dn+=d;return{a:a.length,d}});return{m,cells,A,Dn}});
+    const cells=ents.map(e=>{const a=its.filter(i=>app(i,e)&&methPoss(i,m,e.kode)),d=a.filter(i=>done(i,m,e)).length;A+=a.length;Dn+=d;return{a:a.length,d}});return{m,cells,A,Dn}});
   const sl=(N,e)=>Math.ceil(N/(1+N*e*e)),moe=+D.cfg.moe||.05,pop={},cnt={};D.Populasi.forEach(p=>pop[p.entitas+'|'+p.level]=+p.populasi||0);D.KS_Rekap.forEach(g=>cnt[g.entitas+'|'+g.level]=g.n);
   const KP=ksProgress(ents),kT=KP.T,kN=KP.N;
   const wp=m=>{let T=0,Rl=0;ents.forEach(e=>{const t=wTarget(e.kode);wCats().forEach(c=>{const r=wReal(m,e.kode,c);T+=t[c].tgt;Rl+=Math.min(r,t[c].tgt||r)})});return{T,Rl,n:wRecs(m).filter(r=>ents.some(e=>e.kode===r.entitas)).length}};

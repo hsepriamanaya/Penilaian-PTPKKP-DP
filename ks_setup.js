@@ -7,7 +7,7 @@ let KSL=null,KSF='';
 /* ---------- (1) Aturan ---------- */
 function lvCard(){
   const ents=allEnt();
-  const aff=e=>{const off=lvOff(e).map(x=>x.toUpperCase());return KS_ITEMS_M.filter(i=>i.levels.length&&i.levels.every(l=>off.includes(l))).map(i=>i.code)};
+  const aff=e=>MASTER.items.map(i=>({code:i.code,lost:i.methods.filter(m=>!methPoss(i,m,e)),all:i.methods.every(m=>!methPoss(i,m,e))})).filter(x=>x.lost.length)
   const own=e=>{const v=D.cfg['lvloff_'+e];return v!==undefined&&v!=='*'};
   const cell=(k,l,on)=>`<td class="n"><input type="checkbox" data-lv="${esc(k)}|${l}" ${on?'checked':''} aria-label="${esc(k)} ${l}"></td>`;
   return`<div class="c"><h2>Level yang diikutkan dalam sampel</h2><div class="mu">Hilangkan centang pada level yang <b>tidak dilibatkan</b>. Baris <b>Bawaan umum</b> berlaku untuk semua entitas; ubah centang pada baris sebuah entitas untuk membuat pengecualian khusus entitas itu, misalnya kontraktor tanpa <b>Top Management</b> (direksi/HO). Level yang dimatikan hilang dari pilihan di kuesioner entitas tersebut, dari target sampel, skor kuesioner, dan target narasumber WWC/FGD-nya. Jawaban lama dari level itu tetap tersimpan tetapi tidak dihitung.</div>
@@ -15,7 +15,7 @@ function lvCard(){
    <tr><td><b>Bawaan umum</b></td>${LVALL.map(l=>cell('*',l,lvOn(l))).join('')}<td class="mu">semua entitas yang tidak dikecualikan</td></tr>
    ${ents.map(e=>`<tr><td title="${esc(e.nama)}">${esc(e.kode)}</td>${LVALL.map(l=>cell(e.kode,l,lvOn(l,e.kode))).join('')}<td class="mu">${own(e.kode)?'khusus':'ikut bawaan'}</td></tr>`).join('')}</table></div>
   <div class="row"><button id="lvs">Simpan level</button><span id="lvm" class="mu"></span></div>
-  ${ents.map(e=>({e,a:aff(e.kode)})).filter(x=>x.a.length).map(x=>`<div class="mu er">${esc(x.e.kode)}: item kuesioner yang seluruh levelnya dimatikan tidak terskor dari kuesioner (${x.a.join(', ')}). Nilai lewat metode lain atau override auditor.</div>`).join('')}</div>`}
+  ${ents.map(e=>({e,a:aff(e.kode)})).filter(x=>x.a.length).map(x=>{const na=x.a.filter(i=>i.all).map(i=>i.code),ot=x.a.filter(i=>!i.all).map(i=>i.code+' ('+i.lost.join('/')+')');return`<div class="mu">${esc(x.e.kode)}: ${na.length?`${na.length} item tidak mungkin dinilai dengan metode apa pun sehingga otomatis N/A (<b>${na.join(', ')}</b>)`:''}${na.length&&ot.length?'; ':''}${ot.length?`${ot.length} item kehilangan sebagian metode karena narasumber/penanya tidak ada (<b>${ot.join(', ')}</b>) dan dinilai lewat metode sisanya`:''}.</div>`}).join('')}</div>`}
 function lvBind(){
   $('#lvs').onclick=async()=>{
     const offOf=k=>LVALL.filter(l=>{const c=document.querySelector(`[data-lv="${CSS.escape(k+'|'+l)}"]`);return c&&!c.checked}),bad=['*',...allEnt().map(e=>e.kode)].find(k=>offOf(k).length>=LVALL.length);

@@ -18,7 +18,7 @@ const wTags = (it, m) => { // level narasumber yang disasar item (dari kolom tar
   return r;
 };
 const wApplies = (it, m, level) => { const t = wTags(it, m); return !t.length || t.includes(level) };
-const wItems = (m, ent) => MASTER.items.filter(i => i.methods.includes(m) && !(i.iup && ent && ent.peran !== 'IUP') && !(ent && isNA(i.code, ent.kode)));   /* item N/A bagi entitas tidak ikut diwawancarai */
+const wItems = (m, ent) => MASTER.items.filter(i => i.methods.includes(m) && !(i.iup && ent && ent.peran !== 'IUP') && !(ent && isNA(i.code, ent.kode)) && !(ent && !methPoss(i, m, ent.kode)));   /* item N/A bagi entitas tidak ikut diwawancarai */
 const wRecs = (m, ent) => (D.wwc || []).filter(r => r.metode === m && (!ent || r.entitas === ent));
 const wRound = a => D.cfg.ksround === 'Dibulatkan ke bawah' ? Math.floor(a) : Math.round(a);
 
